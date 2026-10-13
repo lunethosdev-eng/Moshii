@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'package:musicplayer/pages/browse_page.dart';
-import 'package:musicplayer/pages/home_page.dart';
-import 'package:musicplayer/pages/library_page.dart';
-import 'package:musicplayer/pages/radio.dart';
-import 'package:musicplayer/pages/search_page.dart';
-import 'package:musicplayer/widgets/liquid_glass.dart';
+import 'package:pokke/pages/browse_page.dart';
+import 'package:pokke/pages/home_page.dart';
+import 'package:pokke/pages/library_page.dart';
+import 'package:pokke/pages/radio.dart';
+import 'package:pokke/pages/search_page.dart';
+import 'package:pokke/widgets/liquid_glass.dart';
 
 class FirstPage extends StatefulWidget {
   FirstPage({super.key});
