@@ -16,11 +16,30 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final _scrollCtrl = ScrollController();
+  bool _collapsed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollCtrl.addListener(() {
+      final c = _scrollCtrl.offset > 40;
+      if (c != _collapsed) setState(() => _collapsed = c);
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CompactHeader(title: "Home"),
+      appBar: CompactHeader(title: "Home", collapsed: _collapsed),
       body: SingleChildScrollView(
+        controller: _scrollCtrl,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
