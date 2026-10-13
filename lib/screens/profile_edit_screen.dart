@@ -23,6 +23,14 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   bool _saving = false;
 
   final _picker = ImagePicker();
+  String _theme = 'default';
+  final _themes = {
+    'default': [const Color(0xFF0C0C0E), const Color(0xFF1A1A1E)],
+    'sunset': [const Color(0xFF2D1B0E), const Color(0xFFfc3c44)],
+    'ocean': [const Color(0xFF0A1628), const Color(0xFF1B6CA8)],
+    'violet': [const Color(0xFF1A0A2E), const Color(0xFF9B59B6)],
+    'mint': [const Color(0xFF0A1F1A), const Color(0xFF2ECC71)],
+  };
 
   @override
   void initState() {
@@ -37,6 +45,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       _bioCtrl.text = profile['bio'] ?? '';
       _avatarUrl = profile['avatar_url'];
       _bannerUrl = profile['banner_url'];
+      _theme = profile['theme'] ?? 'default';
     }
     setState(() => _loading = false);
   }
@@ -84,6 +93,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       }
 
       await SupabaseService.updateProfile(
+        // theme stored in bio meta or separate column when available
+
         displayName: _displayNameCtrl.text.trim(),
         bio: _bioCtrl.text.trim(),
         avatarUrl: avatar,
