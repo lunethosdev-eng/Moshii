@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
+import 'package:pokke/widgets/liquid_sheet.dart';
 import 'package:pokke/widgets/karaoke_lyrics.dart';
 import 'package:pokke/services/player_controller.dart';
 import 'package:pokke/services/lyrics_service.dart';
@@ -112,17 +113,16 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
   }
 
   void _cast() {
-    // System media route / cast sheet — works with Google Cast when available
-    showModalBottomSheet(
+    showLiquidSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1E),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => SafeArea(
+      child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 16),
               Text(t('Transmitir', 'Cast'),
                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
@@ -139,11 +139,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                 leading: const Icon(Icons.tv, color: Colors.white70),
                 title: Text(t('Abrir ajustes de conexión', 'Open connection settings'),
                     style: const TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  // Best-effort: open wireless settings
-                  // ignore: discarded_futures
-                },
+                onTap: () => Navigator.pop(context),
               ),
             ],
           ),
@@ -160,11 +156,9 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
       );
       return;
     }
-    showModalBottomSheet(
+    showLiquidSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1E),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => SafeArea(
+      child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -178,7 +172,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
               subtitle: Text(t('Solo en pokke', 'Only in pokke'),
                   style: TextStyle(color: Colors.white.withOpacity(0.45))),
               onTap: () async {
-                Navigator.pop(ctx);
+                Navigator.pop(context);
                 await _doDownload(inApp: true);
               },
             ),
@@ -189,7 +183,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
               subtitle: Text(t('Carpeta Music del teléfono', 'Phone Music folder'),
                   style: TextStyle(color: Colors.white.withOpacity(0.45))),
               onTap: () async {
-                Navigator.pop(ctx);
+                Navigator.pop(context);
                 await _doDownload(inApp: false);
               },
             ),
@@ -242,11 +236,9 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
   }
 
   void _showMoreMenu() {
-    showModalBottomSheet(
+    showLiquidSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1E),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => SafeArea(
+      child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -255,14 +247,14 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
               title: Text(t('Agregar a favoritos', 'Add to favorites'), style: const TextStyle(color: Colors.white)),
               onTap: () {
                 setState(() => _liked = !_liked);
-                Navigator.pop(ctx);
+                Navigator.pop(context);
               },
             ),
             ListTile(
               leading: const Icon(Icons.playlist_add, color: Colors.white70),
               title: Text(t('Agregar a playlist', 'Add to playlist'), style: const TextStyle(color: Colors.white)),
               onTap: () {
-                Navigator.pop(ctx);
+                Navigator.pop(context);
                 Navigator.pushNamed(context, '/playlists');
               },
             ),
@@ -270,7 +262,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
               leading: const Icon(Icons.download_rounded, color: Colors.white70),
               title: Text(t('Descargar', 'Download'), style: const TextStyle(color: Colors.white)),
               onTap: () {
-                Navigator.pop(ctx);
+                Navigator.pop(context);
                 _showDownloadSheet();
               },
             ),
@@ -281,7 +273,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
               subtitle: Text(t('Elige el minuto de mezcla', 'Pick blend start time'),
                   style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
               onTap: () {
-                Navigator.pop(ctx);
+                Navigator.pop(context);
                 _showCrossfade();
               },
             ),
@@ -289,7 +281,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
               leading: const Icon(Icons.share, color: Colors.white70),
               title: Text(t('Compartir', 'Share'), style: const TextStyle(color: Colors.white)),
               onTap: () {
-                Navigator.pop(ctx);
+                Navigator.pop(context);
                 _share();
               },
             ),
@@ -302,70 +294,58 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
 
   void _showCrossfade() {
     double minutes = 0;
-    showModalBottomSheet(
+    showLiquidSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1E),
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setModal) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(t('Combinar canciones', 'Blend tracks'),
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Text(
-                    t('Minuto de inicio de la mezcla: ${minutes.toStringAsFixed(1)}',
-                        'Blend start minute: ${minutes.toStringAsFixed(1)}'),
-                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
-                  ),
-                  Slider(
-                    value: minutes,
-                    min: 0,
-                    max: 5,
-                    divisions: 50,
-                    activeColor: const Color(0xfffc3c44),
-                    onChanged: (v) => setModal(() => minutes = v),
-                  ),
-                  Text(
-                    t('Elige otra canción de tu historial para mezclar (próximamente cola dual).',
-                        'Pick another track from history to blend (dual queue coming soon).'),
-                    style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xfffc3c44)),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(t(
-                          'Mezcla a los ${minutes.toStringAsFixed(1)} min guardada',
-                          'Blend at ${minutes.toStringAsFixed(1)} min saved',
-                        ))),
-                      );
-                    },
-                    child: Text(t('Listo', 'Done'), style: const TextStyle(color: Colors.white)),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+      maxHeightFactor: 0.45,
+      child: StatefulBuilder(
+        builder: (ctx, setModal) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(t('Combinar canciones', 'Blend tracks'),
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                  t('Minuto de inicio de la mezcla: ${minutes.toStringAsFixed(1)}',
+                      'Blend start minute: ${minutes.toStringAsFixed(1)}'),
+                  style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                ),
+                Slider(
+                  value: minutes,
+                  min: 0,
+                  max: 5,
+                  divisions: 50,
+                  activeColor: const Color(0xfffc3c44),
+                  onChanged: (v) => setModal(() => minutes = v),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xfffc3c44)),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(t(
+                        'Mezcla a los ${minutes.toStringAsFixed(1)} min guardada',
+                        'Blend at ${minutes.toStringAsFixed(1)} min saved',
+                      ))),
+                    );
+                  },
+                  child: Text(t('Listo', 'Done'), style: const TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
   void _showQueue() {
-    showModalBottomSheet(
+    showLiquidSheet(
       context: context,
-      backgroundColor: const Color(0xFF1A1A1E),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => SafeArea(
+      maxHeightFactor: 0.6,
+      child: SafeArea(
         child: SizedBox(
           height: 360,
           child: Column(
@@ -384,7 +364,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                       title: Text(s['title'] ?? '', style: const TextStyle(color: Colors.white)),
                       subtitle: Text(s['artist'] ?? '', style: TextStyle(color: Colors.white.withOpacity(0.5))),
                       onTap: () {
-                        Navigator.pop(ctx);
+                        Navigator.pop(context);
                         PlayerController.instance.playSong(s, forceRestart: true);
                         setState(() => _song = s);
                         _loadLyrics();
