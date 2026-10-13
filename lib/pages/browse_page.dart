@@ -1,9 +1,10 @@
 import 'dart:math';
-import 'package:musicplayer/lists_constants.dart';
+import 'package:pokke/lists_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'dart:ui';
-import 'package:musicplayer/widgets/liquid_glass.dart';
+import 'package:pokke/widgets/liquid_glass.dart';
+import 'package:pokke/widgets/compact_header.dart';
 class BrowsePage extends StatefulWidget {
   BrowsePage({super.key});
 
@@ -48,44 +49,7 @@ class _BrowsePageState extends State<BrowsePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(90),
-        child: LiquidGlass(
-          blur: 28,
-          opacity: 0.09,
-          borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(24),
-            bottomRight: Radius.circular(24),
-          ),
-          borderWidth: 0.7,
-          enableSpecular: true,
-          child: SafeArea(
-            bottom: false,
-            child: AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              title: const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text(
-                  "Browse",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 34,
-                    color: Colors.white,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-              ),
-              actions: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 12, top: 4),
-                  child: Image.asset("assets/apple.png", height: 48),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      appBar: const CompactHeader(title: "Browse"),
       body: SingleChildScrollView(
         child: Column(
           children: [
