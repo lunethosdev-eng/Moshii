@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pokke/services/supabase_service.dart';
+import 'package:pokke/services/music_api_service.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -18,6 +19,7 @@ class _AdminScreenState extends State<AdminScreen> {
   File? _image;
   bool _saving = false;
   List<Map<String, dynamic>> _announcements = [];
+  final _apiUrlCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -27,7 +29,28 @@ class _AdminScreenState extends State<AdminScreen> {
 
   Future<void> _load() async {
     final list = await SupabaseService.getAnnouncements();
-    setState(() => _announcements = list);
+    final base = await MusicApiService.baseUrl;
+    setState(() {
+      _announcements = list;
+      _apiUrlCtrl.text = base;
+    });
+  }
+
+  Future<void> _saveApiUrl() async {
+    final url = _apiUrlCtrl.text.trim();
+    if (url.isEmpty) return;
+    try {
+      await MusicApiService.setBaseUrl(url);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('API base actualizada globalmente'), backgroundColor: Color(0xfffc3c44)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'), backgroundColor: Colors.red));
+      }
+    }
   }
 
   Future<void> _pickImage() async {
@@ -87,6 +110,33 @@ class _AdminScreenState extends State<AdminScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          const Text('Servidor de música (túnel)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Text('Cuando el link de Cloudflare expire, pega el nuevo aquí. Aplica a todos los usuarios.',
+              style: TextStyle(color: Colors.white54, fontSize: 12)),
+          const SizedBox(height: 10),
+          LiquidGlass(
+            blur: 16,
+            opacity: 0.07,
+            borderRadius: BorderRadius.circular(14),
+            child: TextField(
+              controller: _apiUrlCtrl,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: const InputDecoration(
+                hintText: 'https://....trycloudflare.com',
+                hintStyle: TextStyle(color: Colors.white24),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.all(14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xfffc3c44)),
+            onPressed: _saveApiUrl,
+            child: const Text('Guardar URL global', style: TextStyle(color: Colors.white)),
+          ),
+          const SizedBox(height: 28),
           const Text('Crear anuncio / mini-evento', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
           LiquidGlass(
