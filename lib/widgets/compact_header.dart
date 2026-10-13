@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:pokke/services/supabase_service.dart';
 
-/// Collapsible Liquid Glass header.
-/// When [collapsed] is true it becomes smaller and only shows the title.
 class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool collapsed;
   final double expandedHeight;
   final double collapsedHeight;
+  final VoidCallback? onSettings;
 
   const CompactHeader({
     super.key,
@@ -16,6 +15,7 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
     this.collapsed = false,
     this.expandedHeight = 56,
     this.collapsedHeight = 40,
+    this.onSettings,
   });
 
   @override
@@ -56,7 +56,15 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
                     child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                 ),
-                // Avatar only when expanded
+                // Settings gear
+                if (!collapsed)
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    icon: Icon(Icons.settings_outlined, size: 22, color: Colors.white.withOpacity(0.75)),
+                    onPressed: onSettings ?? () => Navigator.pushNamed(context, '/settings'),
+                  ),
+                // Avatar
                 AnimatedOpacity(
                   opacity: collapsed ? 0 : 1,
                   duration: const Duration(milliseconds: 200),
@@ -68,6 +76,8 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
                       onLongPress: () {
                         if (SupabaseService.isOwner) {
                           Navigator.pushNamed(context, '/admin');
+                        } else {
+                          Navigator.pushNamed(context, '/settings');
                         }
                       },
                       child: Padding(
@@ -83,12 +93,7 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
                                   ? NetworkImage(avatar)
                                   : null,
                               child: avatar == null || avatar.isEmpty
-                                  ? Image.asset(
-                                      'assets/logo/pokke_logo_transparent.png',
-                                      height: 18,
-                                      errorBuilder: (_, __, ___) =>
-                                          const Icon(Icons.music_note, size: 16, color: Colors.white54),
-                                    )
+                                  ? const Icon(Icons.person, size: 16, color: Colors.white54)
                                   : null,
                             );
                           },
