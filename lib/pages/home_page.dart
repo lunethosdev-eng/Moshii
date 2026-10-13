@@ -1,15 +1,9 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
-import 'package:pokke/lists_constants.dart';
-import 'dart:math';
-import 'dart:ui';
-import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:pokke/widgets/compact_header.dart';
 import 'package:pokke/services/supabase_service.dart';
 
 class HomePage extends StatefulWidget {
-   HomePage({super.key});
+  HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -18,14 +12,33 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final _scrollCtrl = ScrollController();
   bool _collapsed = false;
+  List<Map<String, dynamic>> _songs = [];
+  List<Map<String, dynamic>> _artists = [];
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
     _scrollCtrl.addListener(() {
-      final c = _scrollCtrl.offset > 40;
+      final c = _scrollCtrl.offset > 48;
       if (c != _collapsed) setState(() => _collapsed = c);
     });
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final results = await Future.wait([
+        SupabaseService.getSongs(limit: 40),
+        SupabaseService.getArtists(limit: 20),
+      ]);
+      setState(() {
+        _songs = results[0];
+        _artists = results[1];
+      });
+    } catch (_) {}
+    setState(() => _loading = false);
   }
 
   @override
@@ -34,417 +47,170 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: CompactHeader(title: "Home", collapsed: _collapsed),
-      body: SingleChildScrollView(
-        controller: _scrollCtrl,
+  void _openPlayer(Map<String, dynamic> song) {
+    Navigator.pushNamed(context, '/player', arguments: song);
+  }
+
+  Widget _songCard(Map<String, dynamic> s, {double size = 140}) {
+    final cover = s['cover_url'] ?? s['animated_cover_url'];
+    return GestureDetector(
+      onTap: () => _openPlayer(s),
+      child: SizedBox(
+        width: size,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(height: 15,),
-
-            // Real songs from Ukiyo
-            FutureBuilder<List<Map<String, dynamic>>>(
-              future: SupabaseService.getSongs(limit: 12),
-              builder: (context, snap) {
-                if (!snap.hasData || snap.data!.isEmpty) return const SizedBox.shrink();
-                final songs = snap.data!;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(left: 15, top: 10, bottom: 8),
-                      child: Text("From Ukiyo", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    ),
-                    SizedBox(
-                      height: 180,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        itemCount: songs.length,
-                        itemBuilder: (context, i) {
-                          final s = songs[i];
-                          return Container(
-                            width: 140,
-                            margin: const EdgeInsets.only(right: 12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: s['cover_url'] != null
-                                      ? Image.network(s['cover_url'], height: 130, width: 130, fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => Container(height: 130, width: 130, color: Colors.white12))
-                                      : Container(height: 130, width: 130, color: Colors.white12),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(s['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                                Text(s['artist'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 12)),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-
-            Container(
-              // color: Colors.amber,
-              padding: EdgeInsets.only(left: 15),
-              child: Text(
-                "Top Picks For You",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-            ),
-            Container(
-              height: 450,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.all(10),
-                itemCount: constants.TopPicks.length,
-                itemBuilder: (context, index) {
-                  return InkWell(
-                    onTap: () {
-                      Navigator.pushNamed(context, '/artist',
-                          arguments: {'index': index +1});
-                    },
-                    child: Container(
-                      // color: Colors.amber,
-                      margin: EdgeInsets.only(right: 10, left: 6),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(height: 10,),
-                          Text(
-                            constants.TopPicks[index]['topMsg'],
-                            style: TextStyle(
-                                color: Color.fromARGB(255, 153, 153, 153),
-                                fontSize: 16),
-                          ),
-                          SizedBox(
-                            height: 8,
-                          ),
-                          ClipPath(
-                            clipper: ShapeBorderClipper(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.only(
-                                    topLeft: Radius.circular(10),
-                                    topRight: Radius.circular(10)),
-                              ),
-                            ),
-                            child: Image.network(
-                              constants.TopPicks[index]['image'],
-                              height: 305,
-                              width: 250,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          ClipPath(
-                            clipper: ShapeBorderClipper(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.only(
-                                    bottomLeft: Radius.circular(20),
-                                    bottomRight: Radius.circular(20)),
-                              ),
-                            ),
-                            child: Container(
-                              padding: EdgeInsets.only(left: 10, right: 10),
-                              height: 70,
-                              width: 250,
-                              decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                colors: [
-                                   Color.fromARGB(255, 83, 83, 83),
-                                  Color.fromARGB(255, 36, 36, 36)
-                                ],
-                                stops: [0, 1],
-                                begin: Alignment.topRight,
-                                end: Alignment.bottomLeft,
-                              )),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Padding(padding: EdgeInsets.only(top: 1)),
-                                  Text(
-                                    constants.TopPicks[index]['title'],
-                                    style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    constants.TopPicks[index]['artist'],
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            Container(
-              margin: EdgeInsets.only(top: 20),
-              height: 30,
-              padding: EdgeInsets.only(left: 15),
-              child: InkWell(
-                onTap: () {
-                  Navigator.pushNamed(context, '/musiclist');
-                },
-                child: Row(
-                  children: [
-                    Text(
-                      "Now in Spatial Audio",
-                      style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color:  Color.fromARGB(255, 186, 186, 186),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: cover != null
+                  ? Image.network(
+                      cover.toString(),
+                      height: size,
+                      width: size,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          Container(height: size, width: size, color: Colors.white12),
                     )
-                  ],
-                ),
-              ),
+                  : Container(height: size, width: size, color: Colors.white12),
             ),
-            SizedBox(
-              height: 10,
+            const SizedBox(height: 6),
+            Text(
+              s['title'] ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white),
             ),
-            Container(
-              color: Color.fromARGB(255, 28, 28, 28),
-              height: 250,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.all(10),
-                itemCount: 7,
-                itemBuilder: (context, index) {
-                  return InkWell(
-                    onTap: () {
-                      Navigator.pushNamed(context, '/player',
-                          arguments: {'index': index});
-                    },
-                    child: Container(
-                      // color: Colors.amber,
-                      margin: EdgeInsets.only(right: 10, left: 6),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            height: 10,
-                          ),
-                          ClipPath(
-                            clipper: ShapeBorderClipper(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Image.network(
-                              constants.song[index]['image'],
-                              height: 170,
-                              width: 170,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(padding: EdgeInsets.only(top: 5.5)),
-                              Container(
-                                width: 165,
-                                // color: Colors.amberAccent,
-                                child: Text(
-                                  constants.song[index]['title'],
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.normal,
-                                      fontSize: 15,
-                                      color: Colors.white),
-                                ),
-                              ),
-                              Text(
-                                constants.song[index]['artist'],
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.normal,
-                                    fontSize: 12,
-                                    color: Colors.grey),
-                              ),
-                            ],
-                          )
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
+            Text(
+              s['artist'] ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 12),
             ),
-            Container(
-              // color: Colors.amber,
-              margin: EdgeInsets.only(top: 20),
-              height: 30,
-              padding: EdgeInsets.only(left: 15),
-              child: Row(
-                children: [
-                  Text(
-                    "Discover More of Apple Music",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              // color: Color.fromARGB(255, 5, 69, 68),
-              height: 250,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.all(10),
-                itemCount: 10,
-                itemBuilder: (context, index) {
-                  int randomIndex = Random().nextInt(constants.song.length);
-
-                  return Container(
-                    // color: Colors.amber,
-                    margin: EdgeInsets.only(right: 10, left: 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          height: 10,
-                        ),
-                        ClipPath(
-                          clipper: ShapeBorderClipper(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: Image.network(
-                            constants.song[randomIndex]['image'],
-                            height: 170,
-                            width: 170,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(padding: EdgeInsets.only(top: 2.5)),
-                            Container(
-                              width: 165,
-                              // color: Colors.amberAccent,
-                              child: Text(
-                                constants.song[randomIndex]['title'],
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.normal,
-                                    fontSize: 15,
-                                    color: Colors.white),
-                              ),
-                            ),
-                            Text(
-                              constants.song[randomIndex]['artist'],
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.normal,
-                                  fontSize: 12,
-                                  color: Colors.grey),
-                            ),
-                          ],
-                        )
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            Container(
-              // color: Colors.amber,
-              margin: EdgeInsets.only(top: 20),
-              // height: 300,
-              padding: EdgeInsets.only(left: 15),
-              child: InkWell(
-                onTap: () {
-                  Navigator.pushNamed(context, '/artistlist');
-                },
-                child: Row(
-                  children: [
-                    Text(
-                      "Favourite Artists",
-                      style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color:  Color.fromARGB(255, 186, 186, 186),
-                    )
-                  ],
-                ),
-              ),
-            ),
-            Container(
-
-              height: 250,
-              // width: 165,
-              //color: Colors.blue,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: constants.Artist.length,
-                itemBuilder: (context, outerIndex) {
-                  // Assuming you want to display the first item from each artist list
-                  var artistList = constants.Artist[outerIndex];
-                  return InkWell(
-
-                    onTap: () {
-                      Navigator.pushNamed(context, '/artist',
-                          arguments: {'index': outerIndex});
-                    },
-                    child: Container(
-                      margin: EdgeInsets.only(top: 20, left: 15, bottom: 20),
-                      // color:  Color.fromARGB(255, 112, 145, 172),
-                      child: Column(
-                        children: [
-                          ClipPath(
-                            clipper: ShapeBorderClipper(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(200),
-                              ),
-                            ),
-                            child: Image.network(
-                              artistList[0][
-                                  'artist_img'], // Accessing the first artist's image
-                              height: 150,
-                              width: 150,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          SizedBox(
-                            height: 8,
-                          ),
-                          Text(
-                            artistList[0][
-                            'artist'], // Accessing the first artist's name
-                            style: TextStyle(fontSize: 18, color: Colors.white70),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            )
           ],
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0C0C0E),
+      appBar: CompactHeader(title: 'Home', collapsed: _collapsed),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xfffc3c44)))
+          : RefreshIndicator(
+              color: const Color(0xfffc3c44),
+              onRefresh: _load,
+              child: SingleChildScrollView(
+                controller: _scrollCtrl,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 120),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 12),
+
+                    // From Ukiyo - all real songs
+                    const Padding(
+                      padding: EdgeInsets.only(left: 16, bottom: 10),
+                      child: Text('From Ukiyo',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                    if (_songs.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('No songs yet', style: TextStyle(color: Colors.white54)),
+                      )
+                    else
+                      SizedBox(
+                        height: 190,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          itemCount: _songs.length.clamp(0, 15),
+                          separatorBuilder: (_, __) => const SizedBox(width: 12),
+                          itemBuilder: (_, i) => _songCard(_songs[i]),
+                        ),
+                      ),
+
+                    const SizedBox(height: 22),
+
+                    // More tracks grid
+                    const Padding(
+                      padding: EdgeInsets.only(left: 16, bottom: 10),
+                      child: Text('Recommended',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _songs.length > 15 ? _songs.length - 15 : _songs.length,
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 14,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.78,
+                        ),
+                        itemBuilder: (_, i) {
+                          final idx = _songs.length > 15 ? i + 15 : i;
+                          if (idx >= _songs.length) return const SizedBox.shrink();
+                          return _songCard(_songs[idx], size: double.infinity);
+                        },
+                      ),
+                    ),
+
+                    if (_artists.isNotEmpty) ...[
+                      const SizedBox(height: 22),
+                      const Padding(
+                        padding: EdgeInsets.only(left: 16, bottom: 10),
+                        child: Text('Artists',
+                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                      ),
+                      SizedBox(
+                        height: 120,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          itemCount: _artists.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 14),
+                          itemBuilder: (_, i) {
+                            final a = _artists[i];
+                            return Column(
+                              children: [
+                                CircleAvatar(
+                                  radius: 40,
+                                  backgroundColor: Colors.white12,
+                                  backgroundImage: a['image_url'] != null
+                                      ? NetworkImage(a['image_url'])
+                                      : null,
+                                  child: a['image_url'] == null
+                                      ? const Icon(Icons.person, color: Colors.white38)
+                                      : null,
+                                ),
+                                const SizedBox(height: 6),
+                                SizedBox(
+                                  width: 80,
+                                  child: Text(
+                                    a['name'] ?? '',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }
