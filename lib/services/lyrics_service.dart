@@ -1,12 +1,48 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-/// Free lyrics via LRCLIB (no API key).
+/// Free lyrics via LRCLIB only. Never surfaces Termux / junk server text.
 class LyricsService {
   static const _base = 'https://lrclib.net';
   static const _ua = 'Pokke/1.0 (https://github.com/lunethosdev-eng/Moshii)';
 
-  /// Returns synced LRC text or plain lyrics, or null.
+  static bool isJunk(String? text) {
+    if (text == null || text.trim().isEmpty) return true;
+    final lower = text.toLowerCase();
+    const bad = [
+      'termux',
+      'seki',
+      'procesado por',
+      'processed by',
+      'sticky termos',
+      'server error',
+      'no lyrics available on server',
+    ];
+    for (final b in bad) {
+      if (lower.contains(b)) return true;
+    }
+    // Too short to be real lyrics
+    if (text.trim().length < 12) return true;
+    return false;
+  }
+
+  /// Prefer DB text only if it's real lyrics; otherwise LRCLIB.
+  static Future<String?> resolve({
+    String? localText,
+    required String title,
+    required String artist,
+    String? album,
+    int? durationSeconds,
+  }) async {
+    if (!isJunk(localText)) return localText;
+    return fetch(
+      title: title,
+      artist: artist,
+      album: album,
+      durationSeconds: durationSeconds,
+    );
+  }
+
   static Future<String?> fetch({
     required String title,
     required String artist,
@@ -14,7 +50,6 @@ class LyricsService {
     int? durationSeconds,
   }) async {
     try {
-      // 1) Search
       final q = Uri.encodeComponent('$title $artist');
       final searchUri = Uri.parse('$_base/api/search?q=$q');
       final searchRes = await http.get(searchUri, headers: {'User-Agent': _ua});
@@ -22,39 +57,41 @@ class LyricsService {
       final list = jsonDecode(searchRes.body);
       if (list is! List || list.isEmpty) return null;
 
-      Map<String, dynamic>? best = Map<String, dynamic>.from(list.first as Map);
-      // Prefer entry with synced lyrics
+      Map<String, dynamic>? best;
       for (final item in list) {
         final m = Map<String, dynamic>.from(item as Map);
-        if (m['syncedLyrics'] != null && m['syncedLyrics'].toString().isNotEmpty) {
+        final synced = m['syncedLyrics']?.toString();
+        if (synced != null && synced.isNotEmpty && !isJunk(synced)) {
           best = m;
           break;
         }
+        best ??= m;
       }
+      if (best == null) return null;
 
-      final synced = best?['syncedLyrics']?.toString();
-      if (synced != null && synced.isNotEmpty) return synced;
-      final plain = best?['plainLyrics']?.toString();
-      if (plain != null && plain.isNotEmpty) return plain;
+      final synced = best['syncedLyrics']?.toString();
+      if (synced != null && !isJunk(synced)) return synced;
+      final plain = best['plainLyrics']?.toString();
+      if (plain != null && !isJunk(plain)) return plain;
 
-      // 2) Exact get if we have duration
       if (durationSeconds != null && durationSeconds > 0) {
         final params = {
           'track_name': title,
           'artist_name': artist,
-          if (album != null) 'album_name': album,
+          if (album != null && album.isNotEmpty) 'album_name': album,
           'duration': '$durationSeconds',
         };
         final getUri = Uri.parse('$_base/api/get').replace(queryParameters: params);
         final getRes = await http.get(getUri, headers: {'User-Agent': _ua});
         if (getRes.statusCode == 200) {
           final m = jsonDecode(getRes.body) as Map<String, dynamic>;
-          return m['syncedLyrics']?.toString() ?? m['plainLyrics']?.toString();
+          final s = m['syncedLyrics']?.toString();
+          if (s != null && !isJunk(s)) return s;
+          final p = m['plainLyrics']?.toString();
+          if (p != null && !isJunk(p)) return p;
         }
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (_) {}
     return null;
   }
 }
