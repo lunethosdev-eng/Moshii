@@ -62,12 +62,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     if (userId == null) return null;
     final ext = file.path.split('.').last.toLowerCase();
     final path = '$folder/$userId/${DateTime.now().millisecondsSinceEpoch}.$ext';
-    await SupabaseService.kokoro.storage.from('profiles').upload(
+    await SupabaseService.kokoro.storage.from('avatars').upload(
           path,
           file,
           fileOptions: const FileOptions(upsert: true),
         );
-    return SupabaseService.kokoro.storage.from('profiles').getPublicUrl(path);
+    return SupabaseService.kokoro.storage.from('avatars').getPublicUrl(path);
   }
 
   Future<void> _save() async {
