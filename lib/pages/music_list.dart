@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:musicplayer/lists_constants.dart';
+import 'package:pokke/lists_constants.dart';
 
 class MusicList extends StatefulWidget {
   MusicList({super.key});
