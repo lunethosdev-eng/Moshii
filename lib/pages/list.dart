@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:musicplayer/lists_constants.dart';
+import 'package:pokke/lists_constants.dart';
 
 class ListTest extends StatefulWidget {
   const ListTest({super.key});
