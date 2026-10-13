@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:pokke/services/supabase_service.dart';
+import 'package:pokke/services/settings_service.dart';
 
-/// Settings: privacy, Liquid Glass, transparency, animations, fonts.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -11,12 +11,22 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool liquidGlassEnabled = true;
-  double glassOpacity = 0.12;
-  double glassBlur = 24;
-  bool reduceAnimations = false;
-  bool showMiniPlayer = true;
-  String playerFont = 'System';
+  final s = SettingsService.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    s.load().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _persist() async {
+    await s.save();
+    setState(() {});
+  }
+
+  String t(String es, String en) => s.locale == 'en' ? en : es;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       backgroundColor: const Color(0xFF0C0C0E),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.w700)),
+        title: Text(t('Ajustes', 'Settings'), style: const TextStyle(fontWeight: FontWeight.w700)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 20),
           onPressed: () => Navigator.pop(context),
@@ -33,7 +43,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
         children: [
-          _section('Appearance'),
+          _section(t('Idioma', 'Language')),
+          LiquidGlass(
+            blur: 18,
+            opacity: 0.08,
+            borderRadius: BorderRadius.circular(16),
+            child: Column(
+              children: [
+                RadioListTile<String>(
+                  title: const Text('Español', style: TextStyle(color: Colors.white)),
+                  value: 'es',
+                  groupValue: s.locale,
+                  activeColor: const Color(0xfffc3c44),
+                  onChanged: (v) {
+                    s.locale = v!;
+                    _persist();
+                  },
+                ),
+                RadioListTile<String>(
+                  title: const Text('English', style: TextStyle(color: Colors.white)),
+                  value: 'en',
+                  groupValue: s.locale,
+                  activeColor: const Color(0xfffc3c44),
+                  onChanged: (v) {
+                    s.locale = v!;
+                    _persist();
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          _section(t('Apariencia', 'Appearance')),
           LiquidGlass(
             blur: 18,
             opacity: 0.08,
@@ -41,121 +82,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 SwitchListTile(
-                  title: const Text('Liquid Glass', style: TextStyle(color: Colors.white)),
-                  subtitle: Text('Frosted glass on bars & cards',
+                  title: Text(t('Liquid Glass', 'Liquid Glass'), style: const TextStyle(color: Colors.white)),
+                  subtitle: Text(t('Efecto cristal en barras', 'Frosted glass on bars'),
                       style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-                  value: liquidGlassEnabled,
+                  value: s.liquidGlassEnabled,
                   activeColor: const Color(0xfffc3c44),
-                  onChanged: (v) => setState(() => liquidGlassEnabled = v),
+                  onChanged: (v) {
+                    s.liquidGlassEnabled = v;
+                    _persist();
+                  },
                 ),
-                if (liquidGlassEnabled) ...[
+                if (s.liquidGlassEnabled) ...[
                   ListTile(
-                    title: Text('Transparency', style: TextStyle(color: Colors.white.withOpacity(0.9))),
+                    title: Text(t('Transparencia', 'Transparency'),
+                        style: TextStyle(color: Colors.white.withOpacity(0.9))),
                     subtitle: Slider(
-                      value: glassOpacity,
+                      value: s.glassOpacity,
                       min: 0.04,
                       max: 0.28,
                       activeColor: const Color(0xfffc3c44),
-                      onChanged: (v) => setState(() => glassOpacity = v),
+                      onChanged: (v) {
+                        s.glassOpacity = v;
+                        setState(() {});
+                      },
+                      onChangeEnd: (_) => _persist(),
                     ),
                   ),
                   ListTile(
-                    title: Text('Blur intensity', style: TextStyle(color: Colors.white.withOpacity(0.9))),
+                    title: Text(t('Intensidad del blur', 'Blur intensity'),
+                        style: TextStyle(color: Colors.white.withOpacity(0.9))),
                     subtitle: Slider(
-                      value: glassBlur,
+                      value: s.glassBlur,
                       min: 8,
                       max: 40,
                       activeColor: const Color(0xfffc3c44),
-                      onChanged: (v) => setState(() => glassBlur = v),
+                      onChanged: (v) {
+                        s.glassBlur = v;
+                        setState(() {});
+                      },
+                      onChangeEnd: (_) => _persist(),
                     ),
                   ),
                 ],
                 SwitchListTile(
-                  title: const Text('Reduce animations', style: TextStyle(color: Colors.white)),
-                  value: reduceAnimations,
+                  title: Text(t('Reducir animaciones', 'Reduce animations'),
+                      style: const TextStyle(color: Colors.white)),
+                  value: s.reduceAnimations,
                   activeColor: const Color(0xfffc3c44),
-                  onChanged: (v) => setState(() => reduceAnimations = v),
-                ),
-                SwitchListTile(
-                  title: const Text('Mini player', style: TextStyle(color: Colors.white)),
-                  value: showMiniPlayer,
-                  activeColor: const Color(0xfffc3c44),
-                  onChanged: (v) => setState(() => showMiniPlayer = v),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-          _section('Player'),
-          LiquidGlass(
-            blur: 18,
-            opacity: 0.08,
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              children: [
-                ListTile(
-                  title: const Text('Lyrics font', style: TextStyle(color: Colors.white)),
-                  subtitle: Text(playerFont, style: TextStyle(color: Colors.white54)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
-                  onTap: () async {
-                    final fonts = ['System', 'Serif', 'Rounded', 'Mono'];
-                    final pick = await showModalBottomSheet<String>(
-                      context: context,
-                      backgroundColor: const Color(0xFF1A1A1E),
-                      builder: (ctx) => SafeArea(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: fonts
-                              .map((f) => ListTile(
-                                    title: Text(f, style: const TextStyle(color: Colors.white)),
-                                    onTap: () => Navigator.pop(ctx, f),
-                                  ))
-                              .toList(),
-                        ),
-                      ),
-                    );
-                    if (pick != null) setState(() => playerFont = pick);
+                  onChanged: (v) {
+                    s.reduceAnimations = v;
+                    _persist();
                   },
                 ),
-                ListTile(
-                  title: const Text('Custom background', style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Use cover art blur (default)', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
-                  onTap: () {},
+                SwitchListTile(
+                  title: Text(t('Mini player', 'Mini player'), style: const TextStyle(color: Colors.white)),
+                  value: s.showMiniPlayer,
+                  activeColor: const Color(0xfffc3c44),
+                  onChanged: (v) {
+                    s.showMiniPlayer = v;
+                    _persist();
+                  },
                 ),
               ],
             ),
           ),
-
           const SizedBox(height: 20),
-          _section('Privacy'),
-          LiquidGlass(
-            blur: 18,
-            opacity: 0.08,
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              children: [
-                SwitchListTile(
-                  title: const Text('Private profile', style: TextStyle(color: Colors.white)),
-                  subtitle: Text('Only you can see your library',
-                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-                  value: true,
-                  activeColor: const Color(0xfffc3c44),
-                  onChanged: (_) {},
-                ),
-                SwitchListTile(
-                  title: const Text('Listening activity', style: TextStyle(color: Colors.white)),
-                  value: false,
-                  activeColor: const Color(0xfffc3c44),
-                  onChanged: (_) {},
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-          _section('Account'),
+          _section(t('Cuenta', 'Account')),
           LiquidGlass(
             blur: 18,
             opacity: 0.08,
@@ -164,20 +156,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.person_outline, color: Colors.white70),
-                  title: const Text('Edit profile', style: TextStyle(color: Colors.white)),
+                  title: Text(t('Editar perfil', 'Edit profile'), style: const TextStyle(color: Colors.white)),
                   trailing: const Icon(Icons.chevron_right, color: Colors.white38),
                   onTap: () => Navigator.pushNamed(context, '/profile_edit'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome, color: Colors.white70),
+                  title: Text(t('Wrap semanal / mensual', 'Weekly / Monthly wrap'),
+                      style: const TextStyle(color: Colors.white)),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                  onTap: () => Navigator.pushNamed(context, '/wrap'),
                 ),
                 if (SupabaseService.isOwner)
                   ListTile(
                     leading: const Icon(Icons.campaign_outlined, color: Colors.white70),
-                    title: const Text('Admin / Announcements', style: TextStyle(color: Colors.white)),
+                    title: const Text('Admin', style: TextStyle(color: Colors.white)),
                     trailing: const Icon(Icons.chevron_right, color: Colors.white38),
                     onTap: () => Navigator.pushNamed(context, '/admin'),
                   ),
                 ListTile(
                   leading: const Icon(Icons.logout, color: Color(0xfffc3c44)),
-                  title: const Text('Sign out', style: TextStyle(color: Color(0xfffc3c44))),
+                  title: Text(t('Cerrar sesión', 'Sign out'),
+                      style: const TextStyle(color: Color(0xfffc3c44))),
                   onTap: () async {
                     await SupabaseService.signOut();
                     if (context.mounted) {
