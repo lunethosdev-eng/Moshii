@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:pokke/lists_constants.dart';
+import 'package:pokke/services/supabase_service.dart';
+import 'package:pokke/services/artist_image_service.dart';
+import 'package:pokke/widgets/compact_header.dart';
 
 class ArtistList extends StatefulWidget {
   ArtistList({super.key});
@@ -9,96 +11,70 @@ class ArtistList extends StatefulWidget {
 }
 
 class _ArtistListState extends State<ArtistList> {
+  List<Map<String, dynamic>> _artists = [];
+  bool _loading = true;
 
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      var artists = await SupabaseService.getArtists(limit: 50);
+      // Enrich missing images from Deezer
+      for (var i = 0; i < artists.length; i++) {
+        if (artists[i]['image_url'] == null || artists[i]['image_url'].toString().isEmpty) {
+          final img = await ArtistImageService.imageFor(artists[i]['name']?.toString() ?? '');
+          if (img != null) artists[i] = {...artists[i], 'image_url': img};
+        }
+      }
+      // Also derive unique artists from songs if table is sparse
+      if (artists.length < 5) {
+        final songs = await SupabaseService.getSongs(limit: 100);
+        final map = <String, Map<String, dynamic>>{};
+        for (final s in songs) {
+          final name = (s['artist'] ?? '').toString();
+          if (name.isEmpty || map.containsKey(name)) continue;
+          final img = await ArtistImageService.imageFor(name);
+          map[name] = {'name': name, 'image_url': img ?? s['cover_url']};
+        }
+        artists = map.values.toList();
+      }
+      setState(() => _artists = artists);
+    } catch (_) {}
+    setState(() => _loading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          "Favourite Artists",
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-        ),
-        leading:               Row(
-          children: [
-            SizedBox(width: 1,),
-            Image.asset("assets/apple.png", height: 55),
-          ],
-        ),
-
-
-    ),
-      body: Container(
-        child: Container(
-            child: ListView.builder(
-              itemCount: constants.Artist.length - 5,
-              scrollDirection: Axis.vertical,
-              itemBuilder: (context, index) {
-                return InkWell(
-                  onTap: () {
-                    Navigator.pushNamed(context, '/artist',
-                        arguments: {'index': index});
-                  },
-                  child: Container(
-                    // color: Color.fromARGB(255, 63, 55, 28),
-                    padding: EdgeInsets.only(top: 10, left: 15, right: 15),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.favorite_rounded,
-                                  color: Colors.red,
-                                  size: 15,
-                                ),
-                                SizedBox(
-                                  width: 10,
-                                ),
-                                ClipPath(
-                                  clipper: ShapeBorderClipper(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(150),
-                                    ),
-                                  ),
-                                  child: Image.network(
-                                    constants.Artist[index][index]['artist_img'],
-                                    height: 90,
-                                    width: 90,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: 10,
-                                ),
-                                Text(
-                                  constants.Artist[index][index]['artist'],
-                                  style: TextStyle(fontSize: 22),
-                                ),
-                              ],
-                            ),
-                            Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              color: Colors.grey,
-                              size: 18,
-                            ),
-                          ],
-                        ),
-                        Divider(
-                          color: Color.fromARGB(255, 61, 61, 61),
-                          thickness: .4,
-                          indent: 25,
-                          endIndent: 0,
-                        )
-                      ],
-                    ),
+      backgroundColor: const Color(0xFF0C0C0E),
+      appBar: const CompactHeader(title: 'Artists'),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xfffc3c44)))
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 100),
+              itemCount: _artists.length,
+              separatorBuilder: (_, __) => Divider(color: Colors.white.withOpacity(0.08), height: 1),
+              itemBuilder: (_, i) {
+                final a = _artists[i];
+                final img = a['image_url'];
+                return ListTile(
+                  leading: CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.white12,
+                    backgroundImage: img != null ? NetworkImage(img.toString()) : null,
+                    child: img == null ? const Icon(Icons.person, color: Colors.white38) : null,
                   ),
+                  title: Text(a['name'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                  onTap: () => Navigator.pushNamed(context, '/artist', arguments: a),
                 );
               },
-            )),
-      ),
+            ),
     );
   }
 }
