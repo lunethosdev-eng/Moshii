@@ -1,10 +1,8 @@
-import 'dart:math';
-import 'package:pokke/lists_constants.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
-import 'dart:ui';
-import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:pokke/widgets/compact_header.dart';
+import 'package:pokke/services/listening_history.dart';
+import 'package:pokke/services/settings_service.dart';
+
 class LibraryPage extends StatefulWidget {
   LibraryPage({super.key});
 
@@ -15,6 +13,9 @@ class LibraryPage extends StatefulWidget {
 class _LibraryPageState extends State<LibraryPage> {
   final _scrollCtrl = ScrollController();
   bool _collapsed = false;
+  List<Map<String, dynamic>> _recent = [];
+
+  String t(String es, String en) => SettingsService.instance.locale == 'en' ? en : es;
 
   @override
   void initState() {
@@ -23,6 +24,12 @@ class _LibraryPageState extends State<LibraryPage> {
       final c = _scrollCtrl.offset > 40;
       if (c != _collapsed) setState(() => _collapsed = c);
     });
+    _load();
+  }
+
+  Future<void> _load() async {
+    final r = await ListeningHistory.instance.recent(limit: 50);
+    if (mounted) setState(() => _recent = r);
   }
 
   @override
@@ -31,249 +38,75 @@ class _LibraryPageState extends State<LibraryPage> {
     super.dispose();
   }
 
+  Widget _menuRow(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, color: const Color(0xfffc3c44), size: 28),
+            const SizedBox(width: 14),
+            Expanded(child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 18))),
+            const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CompactHeader(title: "Library", collapsed: _collapsed),
-      body: SingleChildScrollView(
-        controller: _scrollCtrl,
-        child: Container(
-          margin: EdgeInsets.only(left: 10, right: 10),
+      backgroundColor: const Color(0xFF0C0C0E),
+      appBar: CompactHeader(title: t('Biblioteca', 'Library'), collapsed: _collapsed),
+      body: RefreshIndicator(
+        color: const Color(0xfffc3c44),
+        onRefresh: _load,
+        child: SingleChildScrollView(
+          controller: _scrollCtrl,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 140),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(height: 15,),
-              InkWell(
-                onTap: () => Navigator.pushNamed(context, '/musiclist'),
-                child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.queue_music_rounded,
-                            color: Colors.red,
-                            size: 40,
-                          ),
-                          SizedBox(
-                            width: 10,
-                          ),
-                          Text(
-                            "Playlist",
-                            style: TextStyle(
-                                color: Colors.white,
-                                // fontWeight: FontWeight.bold,
-                                fontSize: 20),
-                          ),
-                        ],
-                      ),
-                      Icon(Icons.arrow_forward_ios_rounded)
-                    ],
-                  ),
-                  Divider(
-                    color: Color.fromARGB(255, 103, 103, 103),
-                    thickness: .4,
-                    indent: 50,
-                    endIndent: 0,
-                  ),
-                ],
+              _menuRow(Icons.queue_music_rounded, t('Playlists', 'Playlists'),
+                  () => Navigator.pushNamed(context, '/playlists')),
+              Divider(color: Colors.white.withOpacity(0.1)),
+              _menuRow(Icons.mic_external_on, t('Artistas', 'Artists'),
+                  () => Navigator.pushNamed(context, '/artistlist')),
+              Divider(color: Colors.white.withOpacity(0.1)),
+              _menuRow(Icons.album_rounded, t('Álbumes', 'Albums'),
+                  () => Navigator.pushNamed(context, '/musiclist')),
+              Divider(color: Colors.white.withOpacity(0.1)),
+              _menuRow(Icons.music_note_rounded, t('Canciones', 'Songs'),
+                  () => Navigator.pushNamed(context, '/musiclist')),
+              const SizedBox(height: 24),
+              Text(
+                t('Escuchado recientemente', 'Recently Played'),
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              ),
-              InkWell(
-                onTap: () => Navigator.pushNamed(context, '/artistlist'),
-                child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.mic_external_on,
-                            color: Colors.red,
-                            size: 40,
-                          ),
-                          SizedBox(
-                            width: 10,
-                          ),
-                          Text(
-                            "Artist",
-                            style: TextStyle(
-                                color: Colors.white,
-                                // fontWeight: FontWeight.bold,
-                                fontSize: 20),
-                          ),
-                        ],
-                      ),
-                      Icon(Icons.arrow_forward_ios_rounded)
-                    ],
-                  ),
-                  Divider(
-                    color: Color.fromARGB(255, 103, 103, 103),
-                    thickness: .4,
-                    indent: 50,
-                    endIndent: 0,
-                  ),
-                ],
-              ),
-              ),
-              Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.subscriptions_rounded,
-                            color: Colors.red,
-                            size: 40,
-                          ),
-                          SizedBox(
-                            width: 10,
-                          ),
-                          Text(
-                            "Album",
-                            style: TextStyle(
-                                color: Colors.white,
-                                // fontWeight: FontWeight.bold,
-                                fontSize: 20),
-                          ),
-                        ],
-                      ),
-                      Icon(Icons.arrow_forward_ios_rounded)
-                    ],
-                  ),
-                  Divider(
-                    color: Color.fromARGB(255, 103, 103, 103),
-                    thickness: .4,
-                    indent: 50,
-                    endIndent: 0,
-                  ),
-                ],
-              ),
-              GestureDetector(
-                onTap: () {
-                  Navigator.pushNamed(context, "/musiclist");
-                },
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.music_note,
-                              color: Colors.red,
-                              size: 40,
-                            ),
-                            SizedBox(
-                              width: 10,
-                            ),
-                            Text(
-                              "Songs",
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  // fontWeight: FontWeight.bold,
-                                  fontSize: 20),
-                            ),
-                          ],
-                        ),
-                        Icon(Icons.arrow_forward_ios_rounded)
-                      ],
+              const SizedBox(height: 12),
+              if (_recent.isEmpty)
+                Text(t('Aún no has escuchado nada', 'Nothing played yet'),
+                    style: TextStyle(color: Colors.white.withOpacity(0.45)))
+              else
+                ..._recent.map((s) {
+                  final cover = s['cover_url'];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: cover != null
+                          ? Image.network(cover.toString(), width: 48, height: 48, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(width: 48, height: 48, color: Colors.white12))
+                          : Container(width: 48, height: 48, color: Colors.white12),
                     ),
-                    Divider(
-                      color: Color.fromARGB(255, 103, 103, 103),
-                      thickness: .4,
-                      indent: 50,
-                      endIndent: 0,
-                    ),
-                    Container(
-                      // color: Colors.amber,
-                      margin: EdgeInsets.only(top: 20),
-                      height: 30,
-                      padding: EdgeInsets.only(left: 15),
-                      child: Row(
-                        children: [
-                          Text(
-                            "Recently Added",
-                            style: TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      // color: Color.fromARGB(255, 5, 69, 68),
-                      height: 250,
-                      child: ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: EdgeInsets.all(10),
-                        itemCount: 10,
-                        itemBuilder: (context, index) {
-                          int randomIndex =
-                              Random().nextInt(constants.song.length);
-
-                          return Container(
-                            // color: Colors.amber,
-                            margin: EdgeInsets.only(right: 10, left: 6),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SizedBox(
-                                  height: 10,
-                                ),
-                                ClipPath(
-                                  clipper: ShapeBorderClipper(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                  child: Image.network(
-                                    constants.song[randomIndex]['image'],
-                                    height: 170,
-                                    width: 170,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.start,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Padding(padding: EdgeInsets.only(top: 2.5)),
-                                    Container(
-                                      width: 165,
-                                      // color: Colors.amberAccent,
-                                      child: Text(
-                                        constants.song[randomIndex]['title'],
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.normal,
-                                            fontSize: 15,
-                                            color: Colors.white),
-                                      ),
-                                    ),
-                                    Text(
-                                      constants.song[randomIndex]['artist'],
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.normal,
-                                          fontSize: 12,
-                                          color: Colors.grey),
-                                    ),
-                                  ],
-                                )
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                    title: Text(s['title'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    subtitle: Text(s['artist'] ?? '', style: TextStyle(color: Colors.white.withOpacity(0.5))),
+                    onTap: () => Navigator.pushNamed(context, '/player', arguments: s),
+                  );
+                }),
             ],
           ),
         ),
