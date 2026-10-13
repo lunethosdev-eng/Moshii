@@ -68,13 +68,18 @@ class SupabaseService {
     );
 
     if (res.user != null) {
-      await kokoro.from('profiles').upsert({
-        'id': res.user!.id,
-        'username': username.toLowerCase(),
-        'display_name': nickname,
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      });
+      try {
+        await kokoro.from('profiles').upsert({
+          'id': res.user!.id,
+          'username': username.toLowerCase(),
+          'display_name': nickname,
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        });
+      } catch (e) {
+        // RLS may block until email confirmed - profile can be created on first login
+        print('Profile create deferred: $e');
+      }
     }
     return res;
   }
