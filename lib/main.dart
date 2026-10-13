@@ -16,6 +16,7 @@ import 'package:pokke/pages/search_page.dart';
 import 'package:pokke/pages/library_page.dart';
 import 'package:pokke/screens/profile_edit_screen.dart';
 import 'package:pokke/screens/admin_screen.dart';
+import 'package:pokke/screens/settings_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,6 +62,7 @@ class PokkeApp extends StatelessWidget {
         '/player': (context) => MusicPlayer(),
         '/profile_edit': (context) => const ProfileEditScreen(),
         '/admin': (context) => const AdminScreen(),
+        '/settings': (context) => const SettingsScreen(),
       },
     );
   }
