@@ -44,7 +44,14 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
                   future: SupabaseService.getProfile(),
                   builder: (context, snap) {
                     final avatar = snap.data?['avatar_url'] as String?;
-                    return Padding(
+                    return GestureDetector(
+                      onTap: () => Navigator.pushNamed(context, '/profile_edit'),
+                      onLongPress: () {
+                        if (SupabaseService.isOwner) {
+                          Navigator.pushNamed(context, '/admin');
+                        }
+                      },
+                      child: Padding(
                       padding: const EdgeInsets.only(right: 10),
                       child: CircleAvatar(
                         radius: 16,
@@ -56,6 +63,7 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
                             ? Image.asset('assets/logo/pokke_logo_transparent.png', height: 18)
                             : null,
                       ),
+                    ),
                     );
                   },
                 ),
