@@ -7,6 +7,7 @@ import 'package:pokke/pages/library_page.dart';
 import 'package:pokke/pages/radio.dart';
 import 'package:pokke/pages/search_page.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
+import 'package:pokke/widgets/mini_player.dart';
 
 class FirstPage extends StatefulWidget {
   FirstPage({super.key});
@@ -19,11 +20,11 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
   int _selectedIndex = 0;
   bool _isDragging = false;
   int? _hoverIndex;
-  Offset _bubblePos = Offset.zero;
-  double _stretch = 0;
+  double _dragX = 0;
+  double _velocity = 0; // >0 = moving right, <0 = left
+  double _prevX = 0;
 
   late AnimationController _bubbleCtrl;
-  late AnimationController _morphCtrl;
   late Animation<double> _bubbleScale;
 
   final List<Widget> _pages = [
@@ -47,15 +48,13 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _bubbleCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 280));
-    _morphCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
-    _bubbleScale = CurvedAnimation(parent: _bubbleCtrl, curve: Curves.elasticOut);
+    _bubbleCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 220));
+    _bubbleScale = CurvedAnimation(parent: _bubbleCtrl, curve: Curves.easeOutBack);
   }
 
   @override
   void dispose() {
     _bubbleCtrl.dispose();
-    _morphCtrl.dispose();
     super.dispose();
   }
 
@@ -63,23 +62,23 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
     HapticFeedback.mediumImpact();
     setState(() {
       _isDragging = true;
-      _bubblePos = d.localPosition;
+      _dragX = d.localPosition.dx;
+      _prevX = d.localPosition.dx;
+      _velocity = 0;
       _hoverIndex = _indexFromX(d.localPosition.dx, c.maxWidth);
-      _stretch = 0;
     });
     _bubbleCtrl.forward(from: 0);
-    _morphCtrl.repeat(reverse: true);
   }
 
   void _onLongPressMove(LongPressMoveUpdateDetails d, BoxConstraints c) {
-    final idx = _indexFromX(d.localPosition.dx, c.maxWidth);
+    final x = d.localPosition.dx.clamp(0.0, c.maxWidth);
+    final idx = _indexFromX(x, c.maxWidth);
     if (idx != _hoverIndex) HapticFeedback.selectionClick();
-    // Calculate stretch based on movement speed
-    final dx = (d.localPosition.dx - _bubblePos.dx).abs();
     setState(() {
-      _bubblePos = d.localPosition;
+      _velocity = (x - _prevX).clamp(-22.0, 22.0);
+      _prevX = x;
+      _dragX = x;
       _hoverIndex = idx;
-      _stretch = (dx / 40).clamp(0.0, 0.35);
     });
   }
 
@@ -87,13 +86,12 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
     if (_hoverIndex != null && _hoverIndex != _selectedIndex) {
       setState(() => _selectedIndex = _hoverIndex!);
     }
-    _morphCtrl.stop();
     _bubbleCtrl.reverse().then((_) {
       if (mounted) {
         setState(() {
           _isDragging = false;
           _hoverIndex = null;
-          _stretch = 0;
+          _velocity = 0;
         });
       }
     });
@@ -108,108 +106,112 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: _pages[_selectedIndex],
+      body: Stack(
+        children: [
+          _pages[_selectedIndex],
+          // Mini player above nav
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 90,
+            child: MiniPlayer(),
+          ),
+        ],
+      ),
       bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
         child: LayoutBuilder(
           builder: (context, constraints) {
+            final barH = 64.0;
             return GestureDetector(
               onLongPressStart: (d) => _onLongPressStart(d, constraints),
               onLongPressMoveUpdate: (d) => _onLongPressMove(d, constraints),
               onLongPressEnd: _onLongPressEnd,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Main bar
-                  LiquidGlass(
-                    blur: 34,
-                    opacity: 0.13,
-                    borderRadius: BorderRadius.circular(32),
-                    borderWidth: 0.85,
-                    enableSpecular: true,
-                    elevation: 12,
-                    child: SizedBox(
-                      height: 66,
-                      child: Row(
-                        children: List.generate(5, (i) {
-                          final selected = i == _selectedIndex;
-                          final hovering = _isDragging && i == _hoverIndex;
-                          final active = selected || hovering;
-                          return Expanded(
-                            child: GestureDetector(
-                              onTap: () {
-                                HapticFeedback.lightImpact();
-                                setState(() => _selectedIndex = i);
-                              },
-                              behavior: HitTestBehavior.opaque,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    _icons[i],
-                                    size: hovering ? 28 : 25,
-                                    color: active
-                                        ? const Color(0xfffc3c44)
-                                        : Colors.white.withOpacity(0.88),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    _labels[i],
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                                      // FIX: always light color so labels are visible
+              child: SizedBox(
+                height: barH,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Glass bar
+                    LiquidGlass(
+                      blur: 34,
+                      opacity: 0.14,
+                      borderRadius: BorderRadius.circular(32),
+                      borderWidth: 0.85,
+                      enableSpecular: true,
+                      elevation: 10,
+                      child: SizedBox(
+                        height: barH,
+                        child: Row(
+                          children: List.generate(5, (i) {
+                            final selected = i == _selectedIndex;
+                            final hovering = _isDragging && i == _hoverIndex;
+                            final active = selected || hovering;
+                            return Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  setState(() => _selectedIndex = i);
+                                },
+                                behavior: HitTestBehavior.opaque,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      _icons[i],
+                                      size: hovering ? 26 : 24,
                                       color: active
                                           ? const Color(0xfffc3c44)
-                                          : Colors.white.withOpacity(0.75),
+                                          : Colors.white.withOpacity(0.88),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    ),
-                  ),
-
-                  // Morphing Liquid Bubble
-                  if (_isDragging && _hoverIndex != null)
-                    Positioned(
-                      left: (_bubblePos.dx - 36).clamp(0.0, constraints.maxWidth - 72),
-                      top: -22 - (_stretch * 8),
-                      child: ScaleTransition(
-                        scale: _bubbleScale,
-                        child: AnimatedBuilder(
-                          animation: _morphCtrl,
-                          builder: (context, child) {
-                            final wobble = math.sin(_morphCtrl.value * math.pi * 2) * 3;
-                            final width = 72 + _stretch * 28;
-                            final height = 72 - _stretch * 14;
-                            return Transform.translate(
-                              offset: Offset(wobble * 0.4, 0),
-                              child: CustomPaint(
-                                painter: _LiquidBubblePainter(
-                                  stretch: _stretch,
-                                  pulse: _morphCtrl.value,
-                                ),
-                                child: Container(
-                                  width: width,
-                                  height: height,
-                                  alignment: Alignment.center,
-                                  child: Icon(
-                                    _icons[_hoverIndex!],
-                                    size: 30,
-                                    color: const Color(0xfffc3c44),
-                                  ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _labels[i],
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                                        color: active
+                                            ? const Color(0xfffc3c44)
+                                            : Colors.white.withOpacity(0.72),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             );
-                          },
+                          }),
                         ),
                       ),
                     ),
-                ],
+
+                    // Liquid bubble INSIDE the bar (not above)
+                    if (_isDragging && _hoverIndex != null)
+                      Positioned(
+                        left: (_dragX - 30).clamp(4.0, constraints.maxWidth - 64),
+                        top: 6,
+                        child: ScaleTransition(
+                          scale: _bubbleScale,
+                          child: CustomPaint(
+                            size: const Size(60, 52),
+                            painter: _LiquidBubblePainter(
+                              velocity: _velocity,
+                            ),
+                            child: SizedBox(
+                              width: 60,
+                              height: 52,
+                              child: Center(
+                                child: Icon(
+                                  _icons[_hoverIndex!],
+                                  size: 26,
+                                  color: const Color(0xfffc3c44),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             );
           },
@@ -219,30 +221,37 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
   }
 }
 
-/// Custom painter for a more organic, deformable liquid bubble
+/// Bubble that stretches in the direction of movement (liquid inertia).
+/// velocity > 0 (moving right) → mass lags left, bulge on left
+/// velocity < 0 (moving left)  → mass lags right, bulge on right
 class _LiquidBubblePainter extends CustomPainter {
-  final double stretch;
-  final double pulse;
+  final double velocity;
 
-  _LiquidBubblePainter({required this.stretch, required this.pulse});
+  _LiquidBubblePainter({required this.velocity});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final r = size.shortestSide / 2;
-
-    // Organic path with slight deformation
-    final path = Path();
     final cx = size.width / 2;
     final cy = size.height / 2;
-    final rx = r * (1 + stretch * 0.25);
-    final ry = r * (1 - stretch * 0.18);
+    final baseR = size.shortestSide * 0.42;
 
-    for (int i = 0; i <= 60; i++) {
-      final t = i / 60 * math.pi * 2;
-      final wave = math.sin(t * 3 + pulse * math.pi * 2) * (1.8 + stretch * 3);
-      final x = cx + (rx + wave) * math.cos(t);
-      final y = cy + (ry + wave * 0.6) * math.sin(t);
+    // Stretch amount from velocity
+    final stretch = (velocity.abs() / 22.0).clamp(0.0, 1.0);
+    // Direction: when moving right, lag is left (negative bias)
+    final dir = velocity >= 0 ? -1.0 : 1.0;
+
+    final path = Path();
+    const steps = 48;
+    for (int i = 0; i <= steps; i++) {
+      final t = i / steps * math.pi * 2;
+      // Elliptical base stretched along X based on speed
+      final rx = baseR * (1 + stretch * 0.35);
+      final ry = baseR * (1 - stretch * 0.18);
+      // Extra bulge opposite to velocity (inertia)
+      final lag = math.cos(t) * dir * stretch * baseR * 0.45;
+      final wave = math.sin(t * 2) * stretch * 2.2;
+      final x = cx + rx * math.cos(t) + lag;
+      final y = cy + ry * math.sin(t) + wave * 0.4;
       if (i == 0) {
         path.moveTo(x, y);
       } else {
@@ -251,43 +260,56 @@ class _LiquidBubblePainter extends CustomPainter {
     }
     path.close();
 
-    // Glass fill
+    final rect = Offset.zero & size;
+
+    // Soft shadow
+    canvas.drawPath(
+      path.shift(const Offset(0, 2)),
+      Paint()
+        ..color = Colors.black.withOpacity(0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+    );
+
+    // Glass body
     final fill = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          Colors.white.withOpacity(0.28),
-          Colors.white.withOpacity(0.10),
-          const Color(0xfffc3c44).withOpacity(0.08),
+          Colors.white.withOpacity(0.32),
+          Colors.white.withOpacity(0.12),
+          const Color(0xfffc3c44).withOpacity(0.10),
         ],
       ).createShader(rect);
     canvas.drawPath(path, fill);
 
-    // Soft border
-    final border = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2
-      ..color = Colors.white.withOpacity(0.45);
-    canvas.drawPath(path, border);
+    // Border
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..color = Colors.white.withOpacity(0.5),
+    );
 
-    // Specular highlight
-    final highlight = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.center,
-        colors: [
-          Colors.white.withOpacity(0.55),
-          Colors.white.withOpacity(0.0),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height * 0.45));
+    // Specular
     canvas.save();
     canvas.clipPath(path);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height * 0.4), highlight);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height * 0.42),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withOpacity(0.5),
+            Colors.white.withOpacity(0.0),
+          ],
+        ).createShader(rect),
+    );
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _LiquidBubblePainter old) =>
-      old.stretch != stretch || old.pulse != pulse;
+  bool shouldRepaint(covariant _LiquidBubblePainter old) => old.velocity != velocity;
 }
