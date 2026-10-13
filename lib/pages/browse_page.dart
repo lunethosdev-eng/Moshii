@@ -17,31 +17,31 @@ class _BrowsePageState extends State<BrowsePage> {
     {
       't1': 'WOMENS HISTORY MONTH',
       't2': 'Alpha',
-      't3': 'Apple Music',
+      't3': 'pokke',
       'img': 'assets/4.jpg',
     },
     {
       't1': 'NEW PLAYLIST',
       't2': 'Reception Hits',
-      't3': 'Apple Music',
+      't3': 'pokke',
       'img': 'assets/2.jpg',
     },
     {
       't1': 'JUST UPDATED',
       't2': 'Soundtrack your wedding with songs',
-      't3': 'Apple Music',
+      't3': 'pokke',
       'img': 'assets/3.jpg',
     },
     {
       't1': 'ADD TO YOUR LIBRARY',
       't2': 'Soul Revival',
-      't3': 'Apple Music R&B',
+      't3': 'R&B',
       'img': 'assets/4.jpg',
     },
     {
       't1': 'NEW PLAYLIST',
       't2': 'Punjabi Workout',
-      't3': 'Apple Music Punjabi',
+      't3': 'Punjabi',
       'img': 'assets/5.jpg',
     }
   ];
