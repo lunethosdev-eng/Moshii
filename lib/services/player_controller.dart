@@ -1,6 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pokke/services/listening_history.dart';
+import 'package:pokke/services/supabase_service.dart';
 
 /// Global player so mini player and full player share state.
 /// Opening full player for the SAME song does NOT restart playback.
@@ -54,6 +55,16 @@ class PlayerController extends ChangeNotifier {
     current = song;
     notifyListeners();
     ListeningHistory.instance.recordPlay(song);
+    // Global plays for trending (best-effort)
+    try {
+      // ignore: unawaited_futures
+      SupabaseService.kokoro.from('song_plays').insert({
+        'song_id': (song['id'] ?? '').toString(),
+        'user_id': SupabaseService.currentUser?.id,
+        'title': song['title'],
+        'artist': song['artist'],
+      });
+    } catch (_) {}
 
     final url = song['audio_url'] ?? song['stream_url'];
     if (url != null && url.toString().isNotEmpty) {
