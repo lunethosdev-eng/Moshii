@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:palette_generator/palette_generator.dart';
-import 'package:musicplayer/lists_constants.dart';
+import 'package:pokke/lists_constants.dart';
 
 class MusicPlayer extends StatefulWidget {
   MusicPlayer({super.key});
@@ -115,7 +115,14 @@ class _MusicPlayerState extends State<MusicPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return GestureDetector(
+      onVerticalDragUpdate: (details) {
+        if (details.primaryDelta != null && details.primaryDelta! > 12) {
+          // Swipe down to close
+          Navigator.of(context).maybePop();
+        }
+      },
+      child: Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         leadingWidth: 500,
@@ -384,6 +391,7 @@ class _MusicPlayerState extends State<MusicPlayer> {
               ],
             )),
       ),
+    ),
     );
   }
 }
