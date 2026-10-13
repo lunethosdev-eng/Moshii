@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:pokke/services/supabase_service.dart';
 
-/// Remote music search / on-demand download API (Seki tunnel, URL editable from Admin).
+/// Remote music search / on-demand download API (URL editable from Admin).
 class MusicApiService {
   static String? _cachedBase;
 
@@ -34,8 +34,7 @@ class MusicApiService {
     _cachedBase = clean;
   }
 
-  /// Search catalog + remote API. Returns list of song maps.
-  /// If remote is downloading, [onStatus] receives progress messages.
+  /// Search local catalog + remote API (triggers download if missing).
   static Future<List<Map<String, dynamic>>> search(
     String query, {
     void Function(String status, double? progress)? onStatus,
@@ -43,34 +42,48 @@ class MusicApiService {
     final q = query.trim();
     if (q.isEmpty) return [];
 
-    // 1) Local Ukiyo catalog first
     List<Map<String, dynamic>> local = [];
     try {
       local = await SupabaseService.searchSongs(q, limit: 30);
     } catch (_) {}
 
-    // 2) Remote API (may trigger download for missing tracks)
-    onStatus?.call('Buscando en servidor…', null);
+    // Always hit remote so missing tracks get downloaded
+    onStatus?.call('Buscando y descargando si hace falta…', 0.15);
     try {
       final base = await baseUrl;
       final uri = Uri.parse('$base/api/search').replace(queryParameters: {'q': q});
-      final res = await http.get(uri).timeout(const Duration(seconds: 90));
+      // Downloads can take a while
+      final res = await http.get(uri).timeout(const Duration(seconds: 120));
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         List results = [];
-        if (body is Map && body['results'] is List) {
-          results = body['results'] as List;
-          final source = body['source']?.toString();
-          if (source == 'download' || source == 'downloading') {
-            onStatus?.call('Descargando…', body['progress'] is num ? (body['progress'] as num).toDouble() : 0.3);
-          } else {
-            onStatus?.call('Listo', 1);
-          }
+        String? source;
+        if (body is Map) {
+          source = body['source']?.toString();
+          if (body['results'] is List) results = body['results'] as List;
         } else if (body is List) {
           results = body;
         }
-        final remote = results.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        // Merge: prefer remote audio_url if same title
+
+        if (source == 'downloaded_on_demand' ||
+            source == 'download' ||
+            source == 'downloading') {
+          onStatus?.call('Descargada en el servidor ✓', 1.0);
+        } else if (source == 'database') {
+          onStatus?.call('En catálogo', 1.0);
+        } else {
+          onStatus?.call('Listo', 1.0);
+        }
+
+        final remote = results.map((e) {
+          final m = Map<String, dynamic>.from(e as Map);
+          if (source == 'downloaded_on_demand') {
+            m['_just_downloaded'] = true;
+          }
+          return m;
+        }).toList();
+
+        // Prefer remote (has fresh audio_url)
         final merged = <String, Map<String, dynamic>>{};
         for (final s in local) {
           final k = '${s['title']}_${s['artist']}'.toLowerCase();
@@ -80,12 +93,19 @@ class MusicApiService {
           final k = '${s['title']}_${s['artist']}'.toLowerCase();
           merged[k] = s;
         }
-        return merged.values.toList();
+        // If remote returned something local didn't, put remote first
+        final list = merged.values.toList();
+        list.sort((a, b) {
+          final ad = a['_just_downloaded'] == true ? 0 : 1;
+          final bd = b['_just_downloaded'] == true ? 0 : 1;
+          return ad.compareTo(bd);
+        });
+        return list;
       } else {
-        onStatus?.call('Servidor respondió ${res.statusCode}', null);
+        onStatus?.call('Servidor ${res.statusCode}', null);
       }
     } catch (e) {
-      onStatus?.call('API no disponible (túnel caído?)', null);
+      onStatus?.call('API lenta o túnel caído. Reintenta.', null);
     }
     return local;
   }
