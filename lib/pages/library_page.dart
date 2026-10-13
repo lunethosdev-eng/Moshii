@@ -13,17 +13,38 @@ class LibraryPage extends StatefulWidget {
 }
 
 class _LibraryPageState extends State<LibraryPage> {
+  final _scrollCtrl = ScrollController();
+  bool _collapsed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollCtrl.addListener(() {
+      final c = _scrollCtrl.offset > 40;
+      if (c != _collapsed) setState(() => _collapsed = c);
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CompactHeader(title: "Library"),
+      appBar: CompactHeader(title: "Library", collapsed: _collapsed),
       body: SingleChildScrollView(
+        controller: _scrollCtrl,
         child: Container(
           margin: EdgeInsets.only(left: 10, right: 10),
           child: Column(
             children: [
               SizedBox(height: 15,),
-              Column(
+              InkWell(
+                onTap: () => Navigator.pushNamed(context, '/musiclist'),
+                child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -58,7 +79,10 @@ class _LibraryPageState extends State<LibraryPage> {
                   ),
                 ],
               ),
-              Column(
+              ),
+              InkWell(
+                onTap: () => Navigator.pushNamed(context, '/artistlist'),
+                child: Column(
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -92,6 +116,7 @@ class _LibraryPageState extends State<LibraryPage> {
                     endIndent: 0,
                   ),
                 ],
+              ),
               ),
               Column(
                 children: [
