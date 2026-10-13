@@ -6,6 +6,7 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:pokke/widgets/compact_header.dart';
+import 'package:pokke/services/supabase_service.dart';
 
 class HomePage extends StatefulWidget {
    HomePage({super.key});
@@ -24,6 +25,57 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(height: 15,),
+
+            // Real songs from Ukiyo
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: SupabaseService.getSongs(limit: 12),
+              builder: (context, snap) {
+                if (!snap.hasData || snap.data!.isEmpty) return const SizedBox.shrink();
+                final songs = snap.data!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(left: 15, top: 10, bottom: 8),
+                      child: Text("From Ukiyo", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    ),
+                    SizedBox(
+                      height: 180,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        itemCount: songs.length,
+                        itemBuilder: (context, i) {
+                          final s = songs[i];
+                          return Container(
+                            width: 140,
+                            margin: const EdgeInsets.only(right: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: s['cover_url'] != null
+                                      ? Image.network(s['cover_url'], height: 130, width: 130, fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Container(height: 130, width: 130, color: Colors.white12))
+                                      : Container(height: 130, width: 130, color: Colors.white12),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(s['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                                Text(s['artist'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 12)),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+
             Container(
               // color: Colors.amber,
               padding: EdgeInsets.only(left: 15),
