@@ -1,10 +1,7 @@
-import 'dart:math';
-import 'package:pokke/lists_constants.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
-import 'dart:ui';
-import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:pokke/widgets/compact_header.dart';
+import 'package:pokke/services/supabase_service.dart';
+
 class BrowsePage extends StatefulWidget {
   BrowsePage({super.key});
 
@@ -13,648 +10,113 @@ class BrowsePage extends StatefulWidget {
 }
 
 class _BrowsePageState extends State<BrowsePage> {
-  List ban = [
-    {
-      't1': 'WOMENS HISTORY MONTH',
-      't2': 'Alpha',
-      't3': 'pokke',
-      'img': 'assets/4.jpg',
-    },
-    {
-      't1': 'NEW PLAYLIST',
-      't2': 'Reception Hits',
-      't3': 'pokke',
-      'img': 'assets/2.jpg',
-    },
-    {
-      't1': 'JUST UPDATED',
-      't2': 'Soundtrack your wedding with songs',
-      't3': 'pokke',
-      'img': 'assets/3.jpg',
-    },
-    {
-      't1': 'ADD TO YOUR LIBRARY',
-      't2': 'Soul Revival',
-      't3': 'R&B',
-      'img': 'assets/4.jpg',
-    },
-    {
-      't1': 'NEW PLAYLIST',
-      't2': 'Punjabi Workout',
-      't3': 'Punjabi',
-      'img': 'assets/5.jpg',
-    }
-  ];
+  final _scrollCtrl = ScrollController();
+  bool _collapsed = false;
+  List<Map<String, dynamic>> _songs = [];
+  bool _loading = true;
+
+  final _genres = ['Pop', 'Rock', 'Latin', 'Hip Hop', 'R&B', 'Electronic', 'Indie', 'Jazz'];
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollCtrl.addListener(() {
+      final c = _scrollCtrl.offset > 40;
+      if (c != _collapsed) setState(() => _collapsed = c);
+    });
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final s = await SupabaseService.getSongs(limit: 60);
+      setState(() => _songs = s);
+    } catch (_) {}
+    setState(() => _loading = false);
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CompactHeader(title: "Browse"),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-                padding: EdgeInsets.only(top: 10, left: 0, right: 0),
-                height: 350,
-                // width: 1080 / 2.5,
-                // color: Color.fromARGB(255, 80, 71, 37), for debugging purposes
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: ban.length,
-                  itemBuilder: (context, index) {
-                    return Container(
-                      // color: Colors.red,
-                      width: 370,
-                      margin: EdgeInsets.only(left: 6, right: 6),
-                      child: Center(
+      backgroundColor: const Color(0xFF0C0C0E),
+      appBar: CompactHeader(title: 'Browse', collapsed: _collapsed),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xfffc3c44)))
+          : SingleChildScrollView(
+              controller: _scrollCtrl,
+              padding: const EdgeInsets.only(bottom: 140),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 40,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      itemCount: _genres.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (_, i) => Chip(
+                        label: Text(_genres[i], style: const TextStyle(color: Colors.white, fontSize: 13)),
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        side: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 16, bottom: 10),
+                    child: Text('All tracks',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                  ),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 0.78,
+                    ),
+                    itemCount: _songs.length,
+                    itemBuilder: (_, i) {
+                      final s = _songs[i];
+                      final cover = s['cover_url'];
+                      return GestureDetector(
+                        onTap: () => Navigator.pushNamed(context, '/player', arguments: s),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              ban[index]['t1'],
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              ban[index]['t2'],
-                              style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.normal,
-                                  color: Colors.white),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              ban[index]['t3'],
-                              style: TextStyle(
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.normal,
-                                  color: Colors.grey),
-                            ),
-                            SizedBox(
-                              height: 5,
-                            ),
-                            ClipPath(
-                                clipper: ShapeBorderClipper(
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(13)),
-                                ),
-                                child: Image.asset(
-                                  ban[index]['img'],
-                                  height: 720 / 3,
-                                  width: 1080 / 3,
-                                  fit: BoxFit.cover,
-                                )),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                )),
-            Container(
-              margin: EdgeInsets.only(top: 10),
-              // color: Colors.amber,
-              padding: EdgeInsets.only(left: 15),
-              child: Row(
-                children: [
-                  Text(
-                    "We Recommend",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color.fromARGB(255, 186, 186, 186),
-                  )
-                ],
-              ),
-            ),
-            Container(
-              // color: Color.fromARGB(255, 5, 69, 68),
-              height: 250,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.all(10),
-                itemCount: constants.song.length,
-                itemBuilder: (context, index) {
-                  int randomIndex = Random().nextInt(constants.song.length);
-
-                  return Container(
-                    // color: Colors.amber,
-                    margin: EdgeInsets.only(right: 10, left: 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          height: 10,
-                        ),
-                        ClipPath(
-                          clipper: ShapeBorderClipper(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: Image.network(
-                            constants.song[randomIndex]['image'],
-                            height: 170,
-                            width: 170,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(padding: EdgeInsets.only(top: 1)),
-                            Container(
-                              width: 165,
-                              // color: Colors.amberAccent,
-                              child: Text(
-                                constants.song[randomIndex]['title'],
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.normal,
-                                    fontSize: 15,
-                                    color: Colors.white),
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: cover != null
+                                    ? Image.network(cover.toString(), width: double.infinity, fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(color: Colors.white12))
+                                    : Container(color: Colors.white12, child: const Icon(Icons.music_note, color: Colors.white24)),
                               ),
                             ),
-                            Text(
-                              constants.song[randomIndex]['artist'],
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.normal,
-                                  fontSize: 12,
-                                  color: Colors.grey),
-                            ),
-                          ],
-                        )
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            Container(
-              margin: EdgeInsets.only(top: 10),
-              // color: Colors.amber,
-              padding: EdgeInsets.only(left: 15),
-              child: Row(
-                children: [
-                  Text(
-                    "Now in Spatial Audio",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color.fromARGB(255, 186, 186, 186),
-                  )
-                ],
-              ),
-            ),
-            Container(
-              // color: Color.fromARGB(255, 5, 69, 68),
-              height: 250,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.all(10),
-                itemCount: constants.song.length,
-                itemBuilder: (context, index) {
-                  int randomIndex = Random().nextInt(constants.song.length);
-
-                  return Container(
-                    // color: Colors.amber,
-                    margin: EdgeInsets.only(right: 10, left: 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          height: 10,
-                        ),
-                        ClipPath(
-                          clipper: ShapeBorderClipper(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: Image.network(
-                            constants.song[randomIndex]['image'],
-                            height: 170,
-                            width: 170,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(padding: EdgeInsets.only(top: 1)),
-                            Container(
-                              width: 165,
-                              // color: Colors.amberAccent,
-                              child: Text(
-                                constants.song[randomIndex]['title'],
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.normal,
-                                    fontSize: 15,
-                                    color: Colors.white),
-                              ),
-                            ),
-                            Text(
-                              constants.song[randomIndex]['artist'],
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.normal,
-                                  fontSize: 12,
-                                  color: Colors.grey),
-                            ),
-                          ],
-                        )
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            Container(
-              margin: EdgeInsets.only(top: 10),
-              // color: Colors.amber,
-              padding: EdgeInsets.only(left: 15),
-              child: Row(
-                children: [
-                  Text(
-                    "Apple Music Sing",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color.fromARGB(255, 186, 186, 186),
-                  )
-                ],
-              ),
-            ),
-            Container(
-              // color: Colors.amber,
-              height: 150,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  Column(
-                    // mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            // color: Color.fromARGB(255, 255, 7, 94),
-                            gradient: LinearGradient(
-                              colors: [
-                                Color.fromARGB(255, 251, 47, 88),
-                                Color.fromARGB(255, 255, 174, 174)
-                              ],
-                              stops: [0.4, 1],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            )),
-                        margin: EdgeInsets.only(top: 10, left: 10),
-                        height: 100,
-                        width: 200,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Text(
-                              "Let's",
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(
-                                    color: Color.fromARGB(
-                                        255, 255, 255, 255),
-                                    offset: Offset(0, 0),
-                                    blurRadius: 15,
-                                  ),
-                                ],
-                              ),
-                            ),
+                            const SizedBox(height: 6),
+                            Text(s['title'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                            Text(s['artist'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
                           ],
                         ),
-                      ),
-                      Container(
-                          margin: EdgeInsets.only(top: 5, left: 10),
-                          child: Text(
-                            "Start Singing",
-                            style: TextStyle(color: Colors.white),
-                          ))
-                    ],
-                  ),
-                  Column(
-                    // mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            // color: Color.fromARGB(255, 255, 7, 94),
-                            gradient: LinearGradient(
-                              colors: [
-                                Color.fromARGB(255, 251, 47, 88),
-                                Color.fromARGB(255, 255, 174, 174)
-                              ],
-                              stops: [0.4, 1],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            )),
-                        margin: EdgeInsets.only(top: 10, left: 10),
-                        height: 100,
-                        width: 200,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Text(
-                              "Sing",
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(
-                                    color: Color.fromARGB(
-                                        255, 255, 255, 255),
-                                    offset: Offset(0, 0),
-                                    blurRadius: 15,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(
-                              Icons.music_note_outlined,
-                              size: 35,
-                              shadows: [
-                                Shadow(
-                                  color:
-                                      Color.fromARGB(255, 255, 255, 255),
-                                  offset: Offset(0, 0),
-                                  blurRadius: 15,
-                                ),
-                              ],
-                            )
-                          ],
-                        ),
-                      ),
-                      Container(
-                          margin: EdgeInsets.only(top: 5, left: 10),
-                          child: Text(
-                            "Start Singing",
-                            style: TextStyle(color: Colors.white),
-                          ))
-                    ],
-                  ),
-                  Column(
-                    // mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            // color: Color.fromARGB(255, 255, 7, 94),
-                            gradient: LinearGradient(
-                              colors: [
-                                Color.fromARGB(255, 251, 47, 88),
-                                Color.fromARGB(255, 255, 174, 174)
-                              ],
-                              stops: [0.4, 1],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            )),
-                        margin: EdgeInsets.only(top: 10, left: 10),
-                        height: 100,
-                        width: 200,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Text(
-                              "With",
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(
-                                    color: Color.fromARGB(
-                                        255, 255, 255, 255),
-                                    offset: Offset(0, 0),
-                                    blurRadius: 15,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                          margin: EdgeInsets.only(top: 5, left: 10),
-                          child: Text(
-                            "Start Singing",
-                            style: TextStyle(color: Colors.white),
-                          ))
-                    ],
-                  ),
-                  Column(
-                    // mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            // color: Color.fromARGB(255, 255, 7, 94),
-                            gradient: LinearGradient(
-                              colors: [
-                                Color.fromARGB(255, 251, 47, 88),
-                                Color.fromARGB(255, 255, 174, 174)
-                              ],
-                              stops: [0.4, 1],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            )),
-                        margin: EdgeInsets.only(top: 10, left: 10),
-                        height: 100,
-                        width: 200,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Text(
-                              "Apple",
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(
-                                    color: Color.fromARGB(
-                                        255, 255, 255, 255),
-                                    offset: Offset(0, 0),
-                                    blurRadius: 15,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                          margin: EdgeInsets.only(top: 5, left: 10),
-                          child: Text(
-                            "Start Singing",
-                            style: TextStyle(color: Colors.white),
-                          ))
-                    ],
-                  ),
-                  Column(
-                    // mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            // color: Color.fromARGB(255, 255, 7, 94),
-                            gradient: LinearGradient(
-                              colors: [
-                                Color.fromARGB(255, 251, 47, 88),
-                                Color.fromARGB(255, 255, 174, 174)
-                              ],
-                              stops: [0.4, 1],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            )),
-                        margin: EdgeInsets.only(top: 10, left: 10),
-                        height: 100,
-                        width: 200,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Text(
-                              "Music",
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(
-                                    color: Color.fromARGB(
-                                        255, 255, 255, 255),
-                                    offset: Offset(0, 0),
-                                    blurRadius: 15,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                          margin: EdgeInsets.only(top: 5, left: 10),
-                          child: Text(
-                            "Start Singing",
-                            style: TextStyle(color: Colors.white),
-                          ))
-                    ],
+                      );
+                    },
                   ),
                 ],
               ),
             ),
-            Container(
-              margin: EdgeInsets.only(top: 10),
-              // color: Colors.amber,
-              padding: EdgeInsets.only(left: 15),
-              child: Row(
-                children: [
-                  Text(
-                    "Daily Top 100",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color.fromARGB(255, 186, 186, 186),
-                  )
-                ],
-              ),
-            ),
-            Container(
-              // color: Color.fromARGB(255, 5, 69, 68),
-              height: 250,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.all(10),
-                itemCount: constants.song.length,
-                itemBuilder: (context, index) {
-                  int randomIndex = Random().nextInt(constants.song.length);
-
-                  return Container(
-                    // color: Colors.amber,
-                    margin: EdgeInsets.only(right: 10, left: 6),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          height: 10,
-                        ),
-                        ClipPath(
-                          clipper: ShapeBorderClipper(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                          child: Image.network(
-                            constants.song[randomIndex]['image'],
-                            height: 170,
-                            width: 170,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(padding: EdgeInsets.only(top: 1)),
-                            Container(
-                              width: 165,
-                              // color: Colors.amberAccent,
-                              child: Text(
-                                constants.song[randomIndex]['title'],
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    fontWeight: FontWeight.normal,
-                                    fontSize: 15,
-                                    color: Colors.white),
-                              ),
-                            ),
-                            Text(
-                              constants.song[randomIndex]['artist'],
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.normal,
-                                  fontSize: 12,
-                                  color: Colors.grey),
-                            ),
-                          ],
-                        )
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
