@@ -10,6 +10,7 @@ import 'package:pokke/services/download_service.dart';
 import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/listening_history.dart';
+import 'package:pokke/services/follow_service.dart';
 
 class MusicPlayer extends StatefulWidget {
   MusicPlayer({super.key});
@@ -75,6 +76,10 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
         pc.playSong(args);
       }
       _loadLyrics();
+      final artistName = args['artist']?.toString() ?? '';
+      FollowService.isFollowing(artistName).then((v) {
+        if (mounted) setState(() => _following = v);
+      });
     }
   }
 
@@ -106,9 +111,10 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
     final title = _song?['title'] ?? '';
     final artist = _song?['artist'] ?? '';
     final id = _song?['id'] ?? '';
+    // Domain pokke.app is taken — use deep-link style text until you own a domain
     Share.share(t(
-      'Escucha "$title" de $artist en pokke\nhttps://pokke.app/song/$id',
-      'Listen to "$title" by $artist on pokke\nhttps://pokke.app/song/$id',
+      'Escucha "$title" de $artist en pokke\npokke://song/$id',
+      'Listen to "$title" by $artist on pokke\npokke://song/$id',
     ));
   }
 
@@ -406,6 +412,10 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
       PlayerController.instance.playSong(next, forceRestart: true);
       setState(() => _song = next);
       _loadLyrics();
+      final artistName = args['artist']?.toString() ?? '';
+      FollowService.isFollowing(artistName).then((v) {
+        if (mounted) setState(() => _following = v);
+      });
     }
   }
 
@@ -724,7 +734,12 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                                     ),
                                   ),
                                   TextButton(
-                                    onPressed: () => setState(() => _following = !_following),
+                                    onPressed: () async {
+                                      final name = artist;
+                                      final img = cover?.toString();
+                                      final v = await FollowService.toggle(name, imageUrl: img);
+                                      if (mounted) setState(() => _following = v);
+                                    },
                                     style: TextButton.styleFrom(
                                       backgroundColor: _following ? Colors.white12 : const Color(0xfffc3c44),
                                       foregroundColor: Colors.white,
