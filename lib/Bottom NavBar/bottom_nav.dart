@@ -5,6 +5,7 @@ import 'package:musicplayer/pages/home_page.dart';
 import 'package:musicplayer/pages/library_page.dart';
 import 'package:musicplayer/pages/radio.dart';
 import 'package:musicplayer/pages/search_page.dart';
+import 'package:musicplayer/widgets/liquid_glass.dart';
 
 class FirstPage extends StatefulWidget {
   FirstPage({super.key});
@@ -33,56 +34,56 @@ class _FirstPageState extends State<FirstPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true, // Important for glass effect over content
       body: _pages[_selected_index],
-      bottomNavigationBar: ClipRRect(
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(15),
-          topRight: Radius.circular(15),
-        ),
-        child: Container(
-          color: Colors.transparent,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 65),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.01),
-
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+        child: LiquidGlass(
+          blur: 32,
+          opacity: 0.10,
+          borderRadius: BorderRadius.circular(28),
+          borderWidth: 0.9,
+          enableSpecular: true,
+          elevation: 8,
+          child: BottomNavigationBar(
+            type: BottomNavigationBarType.fixed,
+            currentIndex: _selected_index,
+            onTap: _navigateBottomBar,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_filled, size: 28),
+                activeIcon: Icon(Icons.home_filled, size: 28),
+                label: 'Home',
               ),
-              child: BottomNavigationBar(
-                type: BottomNavigationBarType.fixed,
-                currentIndex: _selected_index,
-                onTap: _navigateBottomBar,
-                items: [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.home_filled, size: 30),
-                    label: 'Home',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.grid_view_rounded, size: 30),
-                    label: 'Browse',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.sensors, size: 30),
-                    label: 'Radio',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.subscriptions_rounded, size: 30),
-                    label: 'Library',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.search, size: 30),
-                    label: 'Search',
-                  ),
-                ],
-                elevation: 0,
-                selectedItemColor: Color(0xfffc3c44),
-                unselectedItemColor: Colors.white,
-                showUnselectedLabels: false,
-                backgroundColor: Colors.transparent,
-                selectedFontSize: 13.0,
-                unselectedFontSize: 13.0,
+              BottomNavigationBarItem(
+                icon: Icon(Icons.grid_view_rounded, size: 28),
+                activeIcon: Icon(Icons.grid_view_rounded, size: 28),
+                label: 'Browse',
               ),
-            ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.sensors, size: 28),
+                activeIcon: Icon(Icons.sensors, size: 28),
+                label: 'Radio',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.subscriptions_rounded, size: 28),
+                activeIcon: Icon(Icons.subscriptions_rounded, size: 28),
+                label: 'Library',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.search, size: 28),
+                activeIcon: Icon(Icons.search, size: 28),
+                label: 'Search',
+              ),
+            ],
+            elevation: 0,
+            selectedItemColor: const Color(0xfffc3c44),
+            unselectedItemColor: Colors.white70,
+            showUnselectedLabels: false,
+            backgroundColor: Colors.transparent,
+            selectedFontSize: 12.0,
+            unselectedFontSize: 12.0,
+            selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
       ),
