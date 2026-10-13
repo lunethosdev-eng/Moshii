@@ -3,6 +3,7 @@ import 'package:musicplayer/lists_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'dart:ui';
+import 'package:musicplayer/widgets/liquid_glass.dart';
 class BrowsePage extends StatefulWidget {
   BrowsePage({super.key});
 
@@ -48,39 +49,39 @@ class _BrowsePageState extends State<BrowsePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(80), // Set the height
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.0), // Semi-transparent overlay
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(20),
-              bottomRight: Radius.circular(20),
-            ),
+        preferredSize: const Size.fromHeight(90),
+        child: LiquidGlass(
+          blur: 28,
+          opacity: 0.09,
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
           ),
-          child: ClipRRect(
-
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 25, sigmaY: 55), // Blur effect
-              child: AppBar(
-                backgroundColor: Colors.transparent, // Transparent background
-
-                title: Padding(
-                  padding: EdgeInsets.only(top: 20), // Adjust the value as needed
-                  child:  Text(
-                    "Browse",
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 35,
-                        color: Colors.white70),
-                  ),),
-                actions: [
-                  Container(
-                    padding: EdgeInsets.only(right: 5,top: 12),
-                    child: Image.asset("assets/apple.png", height: 55,),
-
-                  )
-                ],
+          borderWidth: 0.7,
+          enableSpecular: true,
+          child: SafeArea(
+            bottom: false,
+            child: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              title: const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  "Browse",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 34,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
+                  ),
+                ),
               ),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 12, top: 4),
+                  child: Image.asset("assets/apple.png", height: 48),
+                ),
+              ],
             ),
           ),
         ),
