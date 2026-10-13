@@ -1,50 +1,62 @@
 import 'package:flutter/material.dart';
-import 'package:musicplayer/Bottom%20NavBar/bottom_nav.dart';
-import 'package:musicplayer/pages/list.dart';
-import 'package:musicplayer/pages/album_page.dart';
-import 'package:musicplayer/pages/artist_list.dart';
-import 'package:musicplayer/pages/artist_page.dart';
-import 'package:musicplayer/pages/browse_page.dart';
-import 'package:musicplayer/pages/home_page.dart';
-import 'package:musicplayer/pages/music_list.dart';
-import 'package:musicplayer/pages/music_player.dart';
-import 'package:musicplayer/pages/radio.dart';
-import 'package:musicplayer/pages/search_page.dart';
+import 'package:flutter/services.dart';
+import 'package:pokke/services/supabase_service.dart';
+import 'package:pokke/screens/auth_screen.dart';
+import 'package:pokke/Bottom%20NavBar/bottom_nav.dart';
+import 'package:pokke/pages/list.dart';
+import 'package:pokke/pages/album_page.dart';
+import 'package:pokke/pages/artist_list.dart';
+import 'package:pokke/pages/artist_page.dart';
+import 'package:pokke/pages/browse_page.dart';
+import 'package:pokke/pages/home_page.dart';
+import 'package:pokke/pages/music_list.dart';
+import 'package:pokke/pages/music_player.dart';
+import 'package:pokke/pages/radio.dart';
+import 'package:pokke/pages/search_page.dart';
+import 'package:pokke/pages/library_page.dart';
 
-import 'pages/library_page.dart';
-
-void main() {
-  runApp( MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SupabaseService.init();
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+  ));
+  runApp(const PokkeApp());
 }
 
-class MyApp extends StatelessWidget {
-   MyApp({super.key});
+class PokkeApp extends StatelessWidget {
+  const PokkeApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'pokke',
       theme: ThemeData(
-          colorScheme:  ColorScheme.dark(),
-          scaffoldBackgroundColor:  Color.fromARGB(255, 33, 33, 36),
-          appBarTheme:  AppBarTheme(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              scrolledUnderElevation: 0)),
+        colorScheme: const ColorScheme.dark(),
+        scaffoldBackgroundColor: const Color.fromARGB(255, 12, 12, 14),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+        ),
+      ),
       debugShowCheckedModeBanner: false,
-      initialRoute: '/firstpage',
+      initialRoute: SupabaseService.isLoggedIn ? '/firstpage' : '/auth',
       routes: {
-        '/list_test': (context) =>  ListTest(),
+        '/auth': (context) => const AuthScreen(),
+        '/list_test': (context) => ListTest(),
         '/firstpage': (context) => FirstPage(),
-        '/browse': (context) =>  BrowsePage(),
-        '/radio': (context) =>  RadioPage(),
-        '/library': (context) =>  LibraryPage(),
-        '/search': (context) =>  SearchPage(),
-        '/home': (context) =>  HomePage(),
-        '/album': (context) =>  AlbumPage(),
-        '/artist': (context) =>  ArtistPage(),
-        '/artistlist': (context) =>  ArtistList(),
-        '/musiclist': (context) =>  MusicList(),
-        '/player': (context) =>  MusicPlayer()
+        '/browse': (context) => BrowsePage(),
+        '/radio': (context) => RadioPage(),
+        '/library': (context) => LibraryPage(),
+        '/search': (context) => SearchPage(),
+        '/home': (context) => HomePage(),
+        '/album': (context) => AlbumPage(),
+        '/artist': (context) => ArtistPage(),
+        '/artistlist': (context) => ArtistList(),
+        '/musiclist': (context) => MusicList(),
+        '/player': (context) => MusicPlayer(),
       },
     );
   }
