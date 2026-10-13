@@ -133,6 +133,43 @@ class SupabaseService {
   }
 
   // Real music from Ukiyo
+  
+  static Future<List<Map<String, dynamic>>> searchSongs(String query, {int limit = 40}) async {
+    if (query.trim().isEmpty) return [];
+    final q = query.trim();
+    try {
+      final res = await ukiyo
+          .from('songs')
+          .select()
+          .or('title.ilike.%$q%,artist.ilike.%$q%,album.ilike.%$q%')
+          .order('created_at', ascending: false)
+          .limit(limit);
+      final list = List<Map<String, dynamic>>.from(res);
+      if (list.isNotEmpty) return list;
+    } catch (_) {}
+
+    // Fallback local filter for accents / multi-word
+    final all = await ukiyo
+        .from('songs')
+        .select()
+        .order('created_at', ascending: false)
+        .limit(400);
+    final words = q.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    return List<Map<String, dynamic>>.from(all).where((s) {
+      final hay = '${s['title'] ?? ''} ${s['artist'] ?? ''} ${s['album'] ?? ''}'.toLowerCase();
+      return words.every((w) => hay.contains(w));
+    }).take(limit).toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> getArtists({int limit = 30}) async {
+    final res = await ukiyo.from('artists').select().order('name').limit(limit);
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  static Future<Map<String, dynamic>?> getSongById(String id) async {
+    return await ukiyo.from('songs').select().eq('id', id).maybeSingle();
+  }
+
   static Future<List<Map<String, dynamic>>> getSongs({int limit = 50}) async {
     final res = await ukiyo
         .from('songs')
