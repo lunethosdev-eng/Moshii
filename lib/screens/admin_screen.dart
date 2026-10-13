@@ -42,8 +42,8 @@ class _AdminScreenState extends State<AdminScreen> {
       String? imageUrl;
       if (_image != null) {
         final path = 'announcements/${DateTime.now().millisecondsSinceEpoch}.jpg';
-        await SupabaseService.kokoro.storage.from('profiles').upload(path, _image!);
-        imageUrl = SupabaseService.kokoro.storage.from('profiles').getPublicUrl(path);
+        await SupabaseService.kokoro.storage.from('avatars').upload(path, _image!);
+        imageUrl = SupabaseService.kokoro.storage.from('avatars').getPublicUrl(path);
       }
       await SupabaseService.createAnnouncement(
         title: _titleCtrl.text.trim(),
