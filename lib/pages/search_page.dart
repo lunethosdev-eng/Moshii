@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pokke/lists_constants.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
@@ -13,39 +14,61 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final _searchCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
   List<Map<String, dynamic>> _results = [];
   bool _searching = false;
+  bool _collapsed = false;
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollCtrl.addListener(() {
+      final c = _scrollCtrl.offset > 40;
+      if (c != _collapsed) setState(() => _collapsed = c);
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchCtrl.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String q) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 280), () => _doSearch(q));
+  }
 
   Future<void> _doSearch(String q) async {
     if (q.trim().isEmpty) {
-      setState(() => _results = []);
+      setState(() {
+        _results = [];
+        _searching = false;
+      });
       return;
     }
     setState(() => _searching = true);
     try {
-      final all = await SupabaseService.getSongs(limit: 80);
-      final lower = q.toLowerCase();
-      setState(() {
-        _results = all.where((s) {
-          final title = (s['title'] ?? '').toString().toLowerCase();
-          final artist = (s['artist'] ?? '').toString().toLowerCase();
-          return title.contains(lower) || artist.contains(lower);
-        }).toList();
-      });
-    } catch (_) {}
-    setState(() => _searching = false);
+      final res = await SupabaseService.searchSongs(q, limit: 50);
+      if (mounted) setState(() => _results = res);
+    } catch (_) {
+      if (mounted) setState(() => _results = []);
+    }
+    if (mounted) setState(() => _searching = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0C0C0E),
-      appBar: const CompactHeader(title: 'Search'),
+      appBar: CompactHeader(title: 'Search', collapsed: _collapsed),
       body: Column(
         children: [
-          // Single Liquid Glass search bar
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
             child: LiquidGlass(
               blur: 22,
               opacity: 0.10,
@@ -56,9 +79,9 @@ class _SearchPageState extends State<SearchPage> {
                 controller: _searchCtrl,
                 style: const TextStyle(color: Colors.white, fontSize: 16),
                 cursorColor: const Color(0xfffc3c44),
-                onChanged: _doSearch,
+                onChanged: _onChanged,
                 decoration: InputDecoration(
-                  hintText: 'Artists, Songs, Lyrics...',
+                  hintText: 'Artists, Songs, Albums...',
                   hintStyle: TextStyle(color: Colors.white.withOpacity(0.35)),
                   prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.5)),
                   suffixIcon: _searchCtrl.text.isNotEmpty
@@ -69,41 +92,53 @@ class _SearchPageState extends State<SearchPage> {
                             setState(() => _results = []);
                           },
                         )
-                      : Icon(Icons.mic, color: Colors.white.withOpacity(0.4)),
+                      : null,
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
                 ),
               ),
             ),
           ),
-
           Expanded(
             child: _searching
                 ? const Center(child: CircularProgressIndicator(color: Color(0xfffc3c44)))
                 : _results.isNotEmpty
                     ? ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        controller: _scrollCtrl,
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 100),
                         itemCount: _results.length,
                         itemBuilder: (ctx, i) {
                           final s = _results[i];
                           return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             leading: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: s['cover_url'] != null
-                                  ? Image.network(s['cover_url'], width: 50, height: 50, fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(width: 50, height: 50, color: Colors.white12))
-                                  : Container(width: 50, height: 50, color: Colors.white12),
+                                  ? Image.network(
+                                      s['cover_url'],
+                                      width: 52,
+                                      height: 52,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          Container(width: 52, height: 52, color: Colors.white12),
+                                    )
+                                  : Container(width: 52, height: 52, color: Colors.white12),
                             ),
-                            title: Text(s['title'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                            subtitle: Text(s['artist'] ?? '', style: TextStyle(color: Colors.white.withOpacity(0.55))),
-                            onTap: () {
-                              Navigator.pushNamed(context, '/player', arguments: s);
-                            },
+                            title: Text(
+                              s['title'] ?? '',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              s['artist'] ?? '',
+                              style: TextStyle(color: Colors.white.withOpacity(0.55)),
+                            ),
+                            onTap: () => Navigator.pushNamed(context, '/player', arguments: s),
                           );
                         },
                       )
                     : GridView.builder(
-                        padding: const EdgeInsets.all(16),
+                        controller: _scrollCtrl,
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
                           mainAxisSpacing: 12,
@@ -118,8 +153,11 @@ class _SearchPageState extends State<SearchPage> {
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                Image.network(cat['image'], fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(color: Colors.white10)),
+                                Image.network(
+                                  cat['image'],
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(color: Colors.white10),
+                                ),
                                 Container(
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
@@ -132,8 +170,14 @@ class _SearchPageState extends State<SearchPage> {
                                 Positioned(
                                   left: 12,
                                   bottom: 12,
-                                  child: Text(cat['title'], style: const TextStyle(
-                                    color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                                  child: Text(
+                                    cat['title'],
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
