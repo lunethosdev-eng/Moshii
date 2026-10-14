@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:pokke/services/supabase_service.dart';
+import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -21,16 +23,19 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   File? _newBanner;
   bool _loading = true;
   bool _saving = false;
-
-  final _picker = ImagePicker();
   String _theme = 'default';
-  final _themes = {
+  final _picker = ImagePicker();
+
+  final _themes = <String, List<Color>>{
     'default': [const Color(0xFF0C0C0E), const Color(0xFF1A1A1E)],
     'sunset': [const Color(0xFF2D1B0E), const Color(0xFFfc3c44)],
     'ocean': [const Color(0xFF0A1628), const Color(0xFF1B6CA8)],
     'violet': [const Color(0xFF1A0A2E), const Color(0xFF9B59B6)],
     'mint': [const Color(0xFF0A1F1A), const Color(0xFF2ECC71)],
+    'gold': [const Color(0xFF1A1508), const Color(0xFFD4AF37)],
   };
+
+  String t(String es, String en) => SettingsService.instance.locale == 'en' ? en : es;
 
   @override
   void initState() {
@@ -45,17 +50,13 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       _bioCtrl.text = profile['bio'] ?? '';
       _avatarUrl = profile['avatar_url'];
       _bannerUrl = profile['banner_url'];
-      _theme = profile['theme'] ?? 'default';
+      _theme = profile['theme']?.toString() ?? 'default';
     }
     setState(() => _loading = false);
   }
 
   Future<void> _pickMedia({required bool isAvatar}) async {
-    // Supports image + GIF. Video can be added later with file_picker
-    final xfile = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-    );
+    final xfile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (xfile == null) return;
     setState(() {
       if (isAvatar) {
@@ -84,170 +85,239 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     try {
       String? avatar = _avatarUrl;
       String? banner = _bannerUrl;
-
-      if (_newAvatar != null) {
-        avatar = await _uploadFile(_newAvatar!, 'avatars');
-      }
-      if (_newBanner != null) {
-        banner = await _uploadFile(_newBanner!, 'banners');
-      }
-
+      if (_newAvatar != null) avatar = await _uploadFile(_newAvatar!, 'avatars');
+      if (_newBanner != null) banner = await _uploadFile(_newBanner!, 'banners');
       await SupabaseService.updateProfile(
-        // theme stored in bio meta or separate column when available
-
         displayName: _displayNameCtrl.text.trim(),
         bio: _bioCtrl.text.trim(),
         avatarUrl: avatar,
         bannerUrl: banner,
       );
-
+      // theme column best-effort
+      try {
+        await SupabaseService.kokoro.from('profiles').update({
+          'theme': _theme,
+        }).eq('id', SupabaseService.currentUser!.id);
+      } catch (_) {}
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Perfil actualizado'), backgroundColor: Color(0xfffc3c44)),
+          SnackBar(content: Text(t('Perfil guardado', 'Profile saved')), backgroundColor: const Color(0xfffc3c44)),
         );
-        Navigator.pop(context, true);
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
+  void _shareProfile() {
+    final name = _displayNameCtrl.text.trim().isEmpty ? 'pokke' : _displayNameCtrl.text.trim();
+    final id = SupabaseService.currentUser?.id ?? '';
+    Share.share(t(
+      'Mira mi perfil en pokke: @$name\npokke://user/$id',
+      'Check my pokke profile: @$name\npokke://user/$id',
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colors = _themes[_theme] ?? _themes['default']!;
     if (_loading) {
       return const Scaffold(
-        backgroundColor: Color(0xFF0A0A0C),
+        backgroundColor: Color(0xFF0C0C0E),
         body: Center(child: CircularProgressIndicator(color: Color(0xfffc3c44))),
       );
     }
-
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0C),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        title: const Text('Editar perfil', style: TextStyle(fontWeight: FontWeight.w600)),
-        actions: [
-          TextButton(
-            onPressed: _saving ? null : _save,
-            child: _saving
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xfffc3c44)))
-                : const Text('Guardar', style: TextStyle(color: Color(0xfffc3c44), fontWeight: FontWeight.w600)),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [colors[1].withOpacity(0.55), colors[0], const Color(0xFF0C0C0E)],
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // Banner
-            GestureDetector(
-              onTap: () => _pickMedia(isAvatar: false),
-              child: Stack(
+        ),
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            children: [
+              Row(
                 children: [
-                  Container(
-                    height: 140,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      color: Colors.white10,
-                      image: _newBanner != null
-                          ? DecorationImage(image: FileImage(_newBanner!), fit: BoxFit.cover)
-                          : (_bannerUrl != null
-                              ? DecorationImage(image: NetworkImage(_bannerUrl!), fit: BoxFit.cover)
-                              : null),
-                    ),
-                    child: (_newBanner == null && _bannerUrl == null)
-                        ? const Center(child: Icon(Icons.add_photo_alternate_outlined, color: Colors.white38, size: 36))
-                        : null,
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
-                  Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: LiquidGlass(
-                      blur: 12,
-                      opacity: 0.2,
-                      borderRadius: BorderRadius.circular(10),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        child: Text('Cambiar banner', style: TextStyle(fontSize: 12, color: Colors.white)),
+                  Expanded(
+                    child: Text(t('Editar perfil', 'Edit profile'),
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                  ),
+                  TextButton(
+                    onPressed: _shareProfile,
+                    child: Text(t('Compartir', 'Share'), style: const TextStyle(color: Colors.white70)),
+                  ),
+                  TextButton(
+                    onPressed: _saving ? null : _save,
+                    child: Text(t('Guardar', 'Save'),
+                        style: const TextStyle(color: Color(0xfffc3c44), fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Banner
+              GestureDetector(
+                onTap: () => _pickMedia(isAvatar: false),
+                child: Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: SizedBox(
+                        height: 140,
+                        width: double.infinity,
+                        child: _newBanner != null
+                            ? Image.file(_newBanner!, fit: BoxFit.cover)
+                            : (_bannerUrl != null
+                                ? Image.network(_bannerUrl!, fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(color: colors[1].withOpacity(0.4)))
+                                : Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(colors: colors),
+                                    ),
+                                  )),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Avatar
-            GestureDetector(
-              onTap: () => _pickMedia(isAvatar: true),
-              child: Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  CircleAvatar(
-                    radius: 52,
-                    backgroundColor: Colors.white12,
-                    backgroundImage: _newAvatar != null
-                        ? FileImage(_newAvatar!)
-                        : (_avatarUrl != null ? NetworkImage(_avatarUrl!) as ImageProvider : null),
-                    child: (_newAvatar == null && _avatarUrl == null)
-                        ? const Icon(Icons.person, size: 48, color: Colors.white38)
-                        : null,
-                  ),
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: Color(0xfffc3c44),
-                      shape: BoxShape.circle,
+                    Positioned(
+                      right: 10,
+                      bottom: 10,
+                      child: LiquidGlass(
+                        blur: 12,
+                        opacity: 0.2,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          child: Text(t('Cambiar banner', 'Change banner'),
+                              style: const TextStyle(color: Colors.white, fontSize: 12)),
+                        ),
+                      ),
                     ),
-                    child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: GestureDetector(
+                  onTap: () => _pickMedia(isAvatar: true),
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 48,
+                        backgroundColor: Colors.white12,
+                        backgroundImage: _newAvatar != null
+                            ? FileImage(_newAvatar!)
+                            : (_avatarUrl != null ? NetworkImage(_avatarUrl!) as ImageProvider : null),
+                        child: (_newAvatar == null && _avatarUrl == null)
+                            ? const Icon(Icons.person, size: 40, color: Colors.white38)
+                            : null,
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(color: Color(0xfffc3c44), shape: BoxShape.circle),
+                          child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text('Toca para cambiar (JPG, PNG, GIF)', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
-            const SizedBox(height: 28),
-
-            LiquidGlass(
-              blur: 16,
-              opacity: 0.07,
-              borderRadius: BorderRadius.circular(16),
-              child: TextField(
-                controller: _displayNameCtrl,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Nombre / Nickname',
-                  labelStyle: TextStyle(color: Colors.white54),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.all(16),
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
-            LiquidGlass(
-              blur: 16,
-              opacity: 0.07,
-              borderRadius: BorderRadius.circular(16),
-              child: TextField(
-                controller: _bioCtrl,
-                maxLines: 3,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Bio',
-                  labelStyle: TextStyle(color: Colors.white54),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.all(16),
+              const SizedBox(height: 6),
+              Center(
+                child: Text(t('Toca para cambiar (JPG, PNG, GIF)', 'Tap to change (JPG, PNG, GIF)'),
+                    style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
+              ),
+              const SizedBox(height: 20),
+              Text(t('Tema del perfil', 'Profile theme'),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: _themes.entries.map((e) {
+                    final selected = _theme == e.key;
+                    return GestureDetector(
+                      onTap: () => setState(() => _theme = e.key),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(colors: e.value),
+                          border: Border.all(
+                            color: selected ? Colors.white : Colors.transparent,
+                            width: 2.5,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              LiquidGlass(
+                blur: 14,
+                opacity: 0.08,
+                borderRadius: BorderRadius.circular(14),
+                child: TextField(
+                  controller: _displayNameCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: t('Nombre / Nickname', 'Name / Nickname'),
+                    labelStyle: TextStyle(color: Colors.white.withOpacity(0.45)),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.all(14),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              LiquidGlass(
+                blur: 14,
+                opacity: 0.08,
+                borderRadius: BorderRadius.circular(14),
+                child: TextField(
+                  controller: _bioCtrl,
+                  maxLines: 3,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Bio',
+                    labelStyle: TextStyle(color: Colors.white.withOpacity(0.45)),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.all(14),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              LiquidGlass(
+                blur: 14,
+                opacity: 0.08,
+                borderRadius: BorderRadius.circular(14),
+                child: ListTile(
+                  leading: const Icon(Icons.playlist_play, color: Colors.white70),
+                  title: Text(t('Mis playlists', 'My playlists'), style: const TextStyle(color: Colors.white)),
+                  subtitle: Text(t('Crear y compartir', 'Create and share'),
+                      style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                  onTap: () => Navigator.pushNamed(context, '/playlists'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
