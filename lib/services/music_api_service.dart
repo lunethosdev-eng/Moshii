@@ -1,8 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:pokke/services/supabase_service.dart';
 
-/// Remote music search / on-demand download API (URL editable from Admin).
+/// Remote music search / on-demand download + real progress (SSE / polling).
 class MusicApiService {
   static String? _cachedBase;
 
@@ -34,7 +35,84 @@ class MusicApiService {
     _cachedBase = clean;
   }
 
+  static double? _parsePercent(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return (v.toDouble() / (v > 1.5 ? 100.0 : 1.0)).clamp(0.0, 1.0);
+    final s = v.toString().replaceAll('%', '').trim();
+    final n = double.tryParse(s);
+    if (n == null) return null;
+    return (n > 1.5 ? n / 100.0 : n).clamp(0.0, 1.0);
+  }
+
+  /// Listen to SSE progress stream. Returns cancel function.
+  static Future<void Function()> listenProgressStream({
+    required void Function(String status, double? progress, String? youtubeId) onEvent,
+  }) async {
+    final base = await baseUrl;
+    final uri = Uri.parse('$base/api/progress-stream');
+    final client = http.Client();
+    final req = http.Request('GET', uri);
+    req.headers['Accept'] = 'text/event-stream';
+    late StreamSubscription sub;
+    try {
+      final streamed = await client.send(req).timeout(const Duration(seconds: 10));
+      final buffer = StringBuffer();
+      sub = streamed.stream.transform(utf8.decoder).listen(
+        (chunk) {
+          buffer.write(chunk);
+          final raw = buffer.toString();
+          final parts = raw.split('\n');
+          // keep incomplete last line
+          buffer.clear();
+          if (!raw.endsWith('\n')) {
+            buffer.write(parts.isNotEmpty ? parts.removeLast() : '');
+          }
+          for (final line in parts) {
+            final t = line.trim();
+            if (t.isEmpty || t.startsWith(':')) continue;
+            String data = t;
+            if (t.startsWith('data:')) data = t.substring(5).trim();
+            try {
+              final j = jsonDecode(data);
+              if (j is Map) {
+                final pct = _parsePercent(j['percent']);
+                final status = j['status']?.toString() ?? 'downloading';
+                final yid = j['youtubeId']?.toString() ?? j['youtube_id']?.toString();
+                onEvent(status, pct, yid);
+              }
+            } catch (_) {}
+          }
+        },
+        onError: (_) {},
+        onDone: () {},
+        cancelOnError: true,
+      );
+    } catch (_) {
+      client.close();
+      return () {};
+    }
+    return () {
+      sub.cancel();
+      client.close();
+    };
+  }
+
+  /// Poll progress for a youtube id.
+  static Future<Map<String, dynamic>?> pollProgress(String id) async {
+    try {
+      final base = await baseUrl;
+      final uri = Uri.parse('$base/api/progress').replace(queryParameters: {'id': id});
+      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final j = jsonDecode(res.body);
+        if (j is Map) return Map<String, dynamic>.from(j);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Search local catalog + remote API (triggers download if missing).
+  /// Uses SSE for real % when the server exposes /api/progress-stream.
   static Future<List<Map<String, dynamic>>> search(
     String query, {
     void Function(String status, double? progress)? onStatus,
@@ -47,28 +125,26 @@ class MusicApiService {
       local = await SupabaseService.searchSongs(q, limit: 30);
     } catch (_) {}
 
-    // Always hit remote so missing tracks get downloaded
-    onStatus?.call('Buscando en catálogo remoto…', 0.12);
+    onStatus?.call('Conectando…', 0.05);
+
+    void Function()? cancelSse;
+    try {
+      cancelSse = await listenProgressStream(
+        onEvent: (status, progress, yid) {
+          final label = status == 'downloading'
+              ? 'Descargando${progress != null ? ' ${(progress * 100).toStringAsFixed(0)}%' : '…'}'
+              : status;
+          onStatus?.call(label, progress);
+        },
+      );
+    } catch (_) {}
+
     try {
       final base = await baseUrl;
       final uri = Uri.parse('$base/api/search').replace(queryParameters: {'q': q});
-      // Animate progress while the server downloads (API is blocking until done)
-      var fake = 0.12;
-      final ticker = Stream.periodic(const Duration(milliseconds: 450), (i) => i).listen((_) {
-        fake = (fake + 0.03).clamp(0.12, 0.92);
-        onStatus?.call(
-          fake < 0.4
-              ? 'Buscando…'
-              : (fake < 0.75 ? 'Descargando audio…' : 'Procesando en servidor…'),
-          fake,
-        );
-      });
-      late final http.Response res;
-      try {
-        res = await http.get(uri).timeout(const Duration(seconds: 120));
-      } finally {
-        await ticker.cancel();
-      }
+      final res = await http.get(uri).timeout(const Duration(seconds: 120));
+      cancelSse?.call();
+
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         List results = [];
@@ -83,7 +159,7 @@ class MusicApiService {
         if (source == 'downloaded_on_demand' ||
             source == 'download' ||
             source == 'downloading') {
-          onStatus?.call('Descargada en el servidor ✓', 1.0);
+          onStatus?.call('Descarga completa ✓', 1.0);
         } else if (source == 'database') {
           onStatus?.call('En catálogo', 1.0);
         } else {
@@ -92,23 +168,17 @@ class MusicApiService {
 
         final remote = results.map((e) {
           final m = Map<String, dynamic>.from(e as Map);
-          if (source == 'downloaded_on_demand') {
-            m['_just_downloaded'] = true;
-          }
+          if (source == 'downloaded_on_demand') m['_just_downloaded'] = true;
           return m;
         }).toList();
 
-        // Prefer remote (has fresh audio_url)
         final merged = <String, Map<String, dynamic>>{};
         for (final s in local) {
-          final k = '${s['title']}_${s['artist']}'.toLowerCase();
-          merged[k] = s;
+          merged['${s['title']}_${s['artist']}'.toLowerCase()] = s;
         }
         for (final s in remote) {
-          final k = '${s['title']}_${s['artist']}'.toLowerCase();
-          merged[k] = s;
+          merged['${s['title']}_${s['artist']}'.toLowerCase()] = s;
         }
-        // If remote returned something local didn't, put remote first
         final list = merged.values.toList();
         list.sort((a, b) {
           final ad = a['_just_downloaded'] == true ? 0 : 1;
@@ -120,6 +190,7 @@ class MusicApiService {
         onStatus?.call('Servidor ${res.statusCode}', null);
       }
     } catch (e) {
+      cancelSse?.call();
       onStatus?.call('API lenta o túnel caído. Reintenta.', null);
     }
     return local;
