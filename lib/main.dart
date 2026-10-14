@@ -21,6 +21,7 @@ import 'package:pokke/screens/admin_screen.dart';
 import 'package:pokke/screens/settings_screen.dart';
 import 'package:pokke/screens/playlists_screen.dart';
 import 'package:pokke/screens/wrap_screen.dart';
+import 'package:pokke/pages/poki_dj_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,6 +71,7 @@ class PokkeApp extends StatelessWidget {
         '/settings': (context) => const SettingsScreen(),
         '/playlists': (context) => const PlaylistsScreen(),
         '/wrap': (context) => const WrapScreen(),
+        '/poki_dj': (context) => const PokiDjPage(),
       },
     );
   }
