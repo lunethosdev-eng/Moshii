@@ -23,6 +23,8 @@ class PlayerController extends ChangeNotifier {
   }
 
   final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _playerB = AudioPlayer(); // secondary for crossfade
+  bool _usingB = false;
   Map<String, dynamic>? current;
   bool isPlaying = false;
   Duration duration = Duration.zero;
@@ -84,6 +86,38 @@ class PlayerController extends ChangeNotifier {
     if (_songKey(song) != _songKey(current)) {
       current = song;
       notifyListeners();
+    }
+  }
+
+  Future<void> crossfadeTo(Map<String, dynamic> next, {Duration fade = const Duration(seconds: 4)}) async {
+    final url = next['audio_url'] ?? next['stream_url'];
+    if (url == null || url.toString().isEmpty) {
+      await playSong(next, forceRestart: true);
+      return;
+    }
+    final incoming = _usingB ? _player : _playerB;
+    final outgoing = _usingB ? _playerB : _player;
+    try {
+      await incoming.setVolume(0);
+      await incoming.play(UrlSource(url.toString()));
+      const steps = 20;
+      final ms = fade.inMilliseconds ~/ steps;
+      for (var i = 1; i <= steps; i++) {
+        final t = i / steps;
+        await outgoing.setVolume(1 - t);
+        await incoming.setVolume(t);
+        await Future.delayed(Duration(milliseconds: ms));
+      }
+      await outgoing.stop();
+      await outgoing.setVolume(1);
+      _usingB = !_usingB;
+      current = next;
+      isPlaying = true;
+      ListeningHistory.instance.recordPlay(next);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Crossfade error: $e');
+      await playSong(next, forceRestart: true);
     }
   }
 
