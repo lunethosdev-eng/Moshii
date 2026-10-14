@@ -19,8 +19,7 @@ class _SearchPageState extends State<SearchPage> {
   List<Map<String, dynamic>> _results = [];
   bool _searching = false;
   bool _collapsed = false;
-  String? _status;
-  double? _progress;
+  DownloadProgress? _dl;
   Timer? _debounce;
 
   String t(String es, String en) => SettingsService.instance.locale == 'en' ? en : es;
@@ -45,38 +44,54 @@ class _SearchPageState extends State<SearchPage> {
 
   void _onChanged(String q) {
     _debounce?.cancel();
-    // Debounce short queries; full query on submit is more reliable for downloads
     if (q.trim().length < 3) {
       setState(() {
         _results = [];
-        _status = null;
-        _progress = null;
+        _dl = null;
       });
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 700), () => _doSearch(q));
+    _debounce = Timer(const Duration(milliseconds: 800), () => _doSearch(q));
   }
 
   Future<void> _doSearch(String q) async {
     if (q.trim().isEmpty) return;
     setState(() {
       _searching = true;
-      _status = t('Buscando… puede tardar si descarga', 'Searching… may take time if downloading');
-      _progress = 0.1;
+      _dl = DownloadProgress(
+        status: t('Buscando…', 'Searching…'),
+        progress: 0.05,
+        title: q,
+      );
       _results = [];
     });
     try {
       final res = await MusicApiService.search(
         q,
-        onStatus: (s, p) {
-          if (mounted) setState(() { _status = s; _progress = p; });
+        onProgress: (p) {
+          if (!mounted) return;
+          setState(() {
+            // Keep query as title fallback until server sends one
+            _dl = DownloadProgress(
+              status: p.status,
+              progress: p.progress,
+              youtubeId: p.youtubeId,
+              title: p.title ?? _dl?.title ?? q,
+              artist: p.artist ?? _dl?.artist,
+              coverUrl: p.coverUrl ?? _dl?.coverUrl,
+            );
+          });
         },
       );
       if (mounted) {
         setState(() {
           _results = res;
           if (res.isEmpty) {
-            _status = t('Sin resultados. Revisa el túnel en Admin.', 'No results. Check tunnel in Admin.');
+            _dl = DownloadProgress(
+              status: t('Sin resultados. Revisa el túnel en Admin.', 'No results. Check tunnel in Admin.'),
+            );
+          } else {
+            _dl = null; // hide card when we have results
           }
         });
       }
@@ -84,11 +99,91 @@ class _SearchPageState extends State<SearchPage> {
       if (mounted) {
         setState(() {
           _results = [];
-          _status = t('Error: $e', 'Error: $e');
+          _dl = DownloadProgress(status: t('Error: $e', 'Error: $e'));
         });
       }
     }
     if (mounted) setState(() => _searching = false);
+  }
+
+  Widget _downloadCard() {
+    final p = _dl;
+    if (p == null) return const SizedBox.shrink();
+    final pct = p.progress;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: LiquidGlass(
+        blur: 20,
+        opacity: 0.12,
+        borderRadius: BorderRadius.circular(16),
+        enableSpecular: true,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: p.coverUrl != null
+                      ? Image.network(
+                          p.coverUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: Colors.white12,
+                            child: const Icon(Icons.music_note, color: Colors.white38),
+                          ),
+                        )
+                      : Container(
+                          color: Colors.white12,
+                          child: const Icon(Icons.download_rounded, color: Colors.white38),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      p.title ?? t('Descargando…', 'Downloading…'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                    if (p.artist != null)
+                      Text(
+                        p.artist!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                      ),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: pct?.clamp(0.02, 1.0),
+                        backgroundColor: Colors.white12,
+                        color: const Color(0xfffc3c44),
+                        minHeight: 5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      pct != null
+                          ? '${(pct * 100).toStringAsFixed(1)}% · ${p.status}'
+                          : p.status,
+                      style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -113,7 +208,7 @@ class _SearchPageState extends State<SearchPage> {
                 cursorColor: const Color(0xfffc3c44),
                 textInputAction: TextInputAction.search,
                 onChanged: (v) {
-                  setState(() {}); // refresh clear btn
+                  setState(() {});
                   _onChanged(v);
                 },
                 onSubmitted: _doSearch,
@@ -128,8 +223,7 @@ class _SearchPageState extends State<SearchPage> {
                             _searchCtrl.clear();
                             setState(() {
                               _results = [];
-                              _status = null;
-                              _progress = null;
+                              _dl = null;
                             });
                           },
                         )
@@ -140,45 +234,13 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
           ),
-          if (_status != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_status!, style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 12)),
-                  if (_progress != null) ...[
-                    const SizedBox(height: 6),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: _progress!.clamp(0.05, 1.0),
-                        backgroundColor: Colors.white12,
-                        color: const Color(0xfffc3c44),
-                        minHeight: 4,
-                      ),
-                    ),
-                    Text('${((_progress ?? 0) * 100).round()}%',
-                        style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11)),
-                  ],
-                ],
-              ),
-            ),
+          if (_dl != null) _downloadCard(),
           Expanded(
             child: _searching && _results.isEmpty
                 ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircularProgressIndicator(color: Color(0xfffc3c44)),
-                        const SizedBox(height: 16),
-                        Text(
-                          t('Si no está en el catálogo, el servidor la descarga…\nPuede tardar 30–90 s',
-                              'If not in catalog, server downloads it…\nCan take 30–90 s'),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 13),
-                        ),
-                      ],
+                    child: Text(
+                      t('Esperando al servidor…', 'Waiting for server…'),
+                      style: TextStyle(color: Colors.white.withOpacity(0.4)),
                     ),
                   )
                 : _results.isEmpty
@@ -187,8 +249,8 @@ class _SearchPageState extends State<SearchPage> {
                           padding: const EdgeInsets.all(24),
                           child: Text(
                             t(
-                              'Escribe el nombre y pulsa buscar en el teclado.\nEj: Contigo los Panchos\nO pega un link de YouTube.',
-                              'Type a name and press search on the keyboard.\nE.g. Contigo los Panchos\nOr paste a YouTube link.',
+                              'Escribe y pulsa buscar.\nSi no está en el catálogo se descarga con % real.',
+                              'Type and press search.\nIf missing from catalog it downloads with real %.',
                             ),
                             style: TextStyle(color: Colors.white.withOpacity(0.4), height: 1.4),
                             textAlign: TextAlign.center,
@@ -228,7 +290,8 @@ class _SearchPageState extends State<SearchPage> {
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(t('NUEVA', 'NEW'),
-                                        style: const TextStyle(color: Color(0xfffc3c44), fontSize: 10, fontWeight: FontWeight.bold)),
+                                        style: const TextStyle(
+                                            color: Color(0xfffc3c44), fontSize: 10, fontWeight: FontWeight.bold)),
                                   ),
                               ],
                             ),
