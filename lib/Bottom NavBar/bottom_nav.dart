@@ -8,6 +8,8 @@ import 'package:pokke/pages/radio.dart';
 import 'package:pokke/pages/search_page.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:pokke/widgets/mini_player.dart';
+import 'package:pokke/widgets/headphone_banner.dart';
+import 'package:pokke/services/headphone_service.dart';
 
 class FirstPage extends StatefulWidget {
   FirstPage({super.key});
@@ -23,6 +25,7 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
   double _dragX = 0;
   double _velocity = 0; // >0 = moving right, <0 = left
   double _prevX = 0;
+  String? _headphoneDevice;
 
   late AnimationController _bubbleCtrl;
   late Animation<double> _bubbleScale;
@@ -50,6 +53,10 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
     super.initState();
     _bubbleCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 220));
     _bubbleScale = CurvedAnimation(parent: _bubbleCtrl, curve: Curves.easeOutBack);
+    HeadphoneService.instance.start();
+    HeadphoneService.instance.onConnected.listen((name) {
+      if (mounted) setState(() => _headphoneDevice = name);
+    });
   }
 
   @override
@@ -104,7 +111,9 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Stack(
+      children: [
+        Scaffold(
       extendBody: true,
       body: Stack(
         children: [
@@ -217,6 +226,15 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
           },
         ),
       ),
+        ),
+        if (_headphoneDevice != null)
+          HeadphoneBanner(
+            deviceName: _headphoneDevice!,
+            onDone: () {
+              if (mounted) setState(() => _headphoneDevice = null);
+            },
+          ),
+      ],
     );
   }
 }
