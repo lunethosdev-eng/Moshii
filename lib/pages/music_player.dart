@@ -11,6 +11,7 @@ import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/follow_service.dart';
+import 'package:pokke/services/ai_dj_service.dart';
 
 class MusicPlayer extends StatefulWidget {
   MusicPlayer({super.key});
@@ -291,6 +292,21 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                 _share();
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.record_voice_over, color: Colors.white70),
+              title: Text(t('Presentar con AI DJ', 'Announce with AI DJ'), style: const TextStyle(color: Colors.white)),
+              subtitle: Text(t('Voz del dispositivo', 'On-device voice'),
+                  style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+              onTap: () async {
+                Navigator.pop(context);
+                final title = _song?['title']?.toString() ?? '';
+                final artist = _song?['artist']?.toString() ?? '';
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(t('AI DJ hablando…', 'AI DJ speaking…'))),
+                );
+                await AiDjService.instance.announceTrack(title: title, artist: artist);
+              },
+            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -412,7 +428,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
       PlayerController.instance.playSong(next, forceRestart: true);
       setState(() => _song = next);
       _loadLyrics();
-      final artistName = args['artist']?.toString() ?? '';
+      final artistName = next['artist']?.toString() ?? '';
       FollowService.isFollowing(artistName).then((v) {
         if (mounted) setState(() => _following = v);
       });
