@@ -48,12 +48,27 @@ class MusicApiService {
     } catch (_) {}
 
     // Always hit remote so missing tracks get downloaded
-    onStatus?.call('Buscando y descargando si hace falta…', 0.15);
+    onStatus?.call('Buscando en catálogo remoto…', 0.12);
     try {
       final base = await baseUrl;
       final uri = Uri.parse('$base/api/search').replace(queryParameters: {'q': q});
-      // Downloads can take a while
-      final res = await http.get(uri).timeout(const Duration(seconds: 120));
+      // Animate progress while the server downloads (API is blocking until done)
+      var fake = 0.12;
+      final ticker = Stream.periodic(const Duration(milliseconds: 450), (i) => i).listen((_) {
+        fake = (fake + 0.03).clamp(0.12, 0.92);
+        onStatus?.call(
+          fake < 0.4
+              ? 'Buscando…'
+              : (fake < 0.75 ? 'Descargando audio…' : 'Procesando en servidor…'),
+          fake,
+        );
+      });
+      late final http.Response res;
+      try {
+        res = await http.get(uri).timeout(const Duration(seconds: 120));
+      } finally {
+        await ticker.cancel();
+      }
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         List results = [];
