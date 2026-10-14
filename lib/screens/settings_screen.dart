@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
-import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -12,6 +11,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final s = SettingsService.instance;
+  String _filter = '';
 
   @override
   void initState() {
@@ -28,8 +28,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String t(String es, String en) => s.locale == 'en' ? en : es;
 
+  Widget _section(String title) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
+        child: Text(title,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              letterSpacing: 0.6,
+            )),
+      );
+
+  Widget _flagTile(Map<String, String> item) {
+    final id = item['id']!;
+    final label = s.locale == 'en' ? item['en']! : item['es']!;
+    return SwitchListTile(
+      title: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+      value: s.flag(id),
+      activeColor: const Color(0xfffc3c44),
+      onChanged: (v) {
+        s.setFlag(id, v);
+        // Keep legacy mirrors in sync
+        if (id == 'ui_liquid_glass') s.liquidGlassEnabled = v;
+        if (id == 'ui_reduce_motion') s.reduceAnimations = v;
+        if (id == 'ui_mini_player') s.showMiniPlayer = v;
+        _persist();
+      },
+    );
+  }
+
+  List<Map<String, String>> _byCat(String cat) {
+    final q = _filter.trim().toLowerCase();
+    return SettingsService.catalog.where((e) {
+      if (e['cat'] != cat) return false;
+      if (q.isEmpty) return true;
+      return (e['es']!.toLowerCase().contains(q) || e['en']!.toLowerCase().contains(q));
+    }).toList();
+  }
+
+  Widget _group(String title, String cat) {
+    final items = _byCat(cat);
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _section(title),
+        LiquidGlass(
+          blur: 16,
+          opacity: 0.08,
+          borderRadius: BorderRadius.circular(16),
+          child: Column(children: items.map(_flagTile).toList()),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final total = SettingsService.catalog.length;
     return Scaffold(
       backgroundColor: const Color(0xFF0C0C0E),
       appBar: AppBar(
@@ -41,8 +97,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 48),
         children: [
+          LiquidGlass(
+            blur: 18,
+            opacity: 0.1,
+            borderRadius: BorderRadius.circular(14),
+            child: TextField(
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: t('Buscar en $total ajustes…', 'Search $total settings…'),
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.35)),
+                prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.45)),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              ),
+              onChanged: (v) => setState(() => _filter = v),
+            ),
+          ),
           _section(t('Idioma', 'Language')),
           LiquidGlass(
             blur: 18,
@@ -73,8 +145,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          _section(t('Apariencia', 'Appearance')),
+          _section(t('Liquid Glass', 'Liquid Glass')),
           LiquidGlass(
             blur: 18,
             opacity: 0.08,
@@ -82,124 +153,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 SwitchListTile(
-                  title: Text(t('Liquid Glass', 'Liquid Glass'), style: const TextStyle(color: Colors.white)),
-                  subtitle: Text(t('Efecto cristal en barras', 'Frosted glass on bars'),
-                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                  title: Text(t('Activar Liquid Glass', 'Enable Liquid Glass'),
+                      style: const TextStyle(color: Colors.white)),
                   value: s.liquidGlassEnabled,
                   activeColor: const Color(0xfffc3c44),
                   onChanged: (v) {
                     s.liquidGlassEnabled = v;
+                    s.setFlag('ui_liquid_glass', v);
                     _persist();
                   },
                 ),
-                if (s.liquidGlassEnabled) ...[
-                  ListTile(
-                    title: Text(t('Transparencia', 'Transparency'),
-                        style: TextStyle(color: Colors.white.withOpacity(0.9))),
-                    subtitle: Slider(
-                      value: s.glassOpacity,
-                      min: 0.04,
-                      max: 0.28,
-                      activeColor: const Color(0xfffc3c44),
-                      onChanged: (v) {
-                        s.glassOpacity = v;
-                        setState(() {});
-                      },
-                      onChangeEnd: (_) => _persist(),
-                    ),
+                ListTile(
+                  title: Text(t('Opacidad', 'Opacity'), style: const TextStyle(color: Colors.white70)),
+                  subtitle: Slider(
+                    value: s.glassOpacity.clamp(0.04, 0.4),
+                    min: 0.04,
+                    max: 0.4,
+                    activeColor: const Color(0xfffc3c44),
+                    onChanged: (v) {
+                      s.glassOpacity = v;
+                      setState(() {});
+                    },
+                    onChangeEnd: (_) => _persist(),
                   ),
-                  ListTile(
-                    title: Text(t('Intensidad del blur', 'Blur intensity'),
-                        style: TextStyle(color: Colors.white.withOpacity(0.9))),
-                    subtitle: Slider(
-                      value: s.glassBlur,
-                      min: 8,
-                      max: 40,
-                      activeColor: const Color(0xfffc3c44),
-                      onChanged: (v) {
-                        s.glassBlur = v;
-                        setState(() {});
-                      },
-                      onChangeEnd: (_) => _persist(),
-                    ),
-                  ),
-                ],
-                SwitchListTile(
-                  title: Text(t('Reducir animaciones', 'Reduce animations'),
-                      style: const TextStyle(color: Colors.white)),
-                  value: s.reduceAnimations,
-                  activeColor: const Color(0xfffc3c44),
-                  onChanged: (v) {
-                    s.reduceAnimations = v;
-                    _persist();
-                  },
                 ),
-                SwitchListTile(
-                  title: Text(t('Mini player', 'Mini player'), style: const TextStyle(color: Colors.white)),
-                  value: s.showMiniPlayer,
-                  activeColor: const Color(0xfffc3c44),
-                  onChanged: (v) {
-                    s.showMiniPlayer = v;
-                    _persist();
-                  },
+                ListTile(
+                  title: Text(t('Blur', 'Blur'), style: const TextStyle(color: Colors.white70)),
+                  subtitle: Slider(
+                    value: s.glassBlur.clamp(8, 40),
+                    min: 8,
+                    max: 40,
+                    activeColor: const Color(0xfffc3c44),
+                    onChanged: (v) {
+                      s.glassBlur = v;
+                      setState(() {});
+                    },
+                    onChangeEnd: (_) => _persist(),
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          _section(t('Cuenta', 'Account')),
-          LiquidGlass(
-            blur: 18,
-            opacity: 0.08,
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.person_outline, color: Colors.white70),
-                  title: Text(t('Editar perfil', 'Edit profile'), style: const TextStyle(color: Colors.white)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
-                  onTap: () => Navigator.pushNamed(context, '/profile_edit'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.auto_awesome, color: Colors.white70),
-                  title: Text(t('Wrap semanal / mensual', 'Weekly / Monthly wrap'),
-                      style: const TextStyle(color: Colors.white)),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
-                  onTap: () => Navigator.pushNamed(context, '/wrap'),
-                ),
-                if (SupabaseService.isOwner)
-                  ListTile(
-                    leading: const Icon(Icons.campaign_outlined, color: Colors.white70),
-                    title: const Text('Admin', style: TextStyle(color: Colors.white)),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.white38),
-                    onTap: () => Navigator.pushNamed(context, '/admin'),
-                  ),
-                ListTile(
-                  leading: const Icon(Icons.logout, color: Color(0xfffc3c44)),
-                  title: Text(t('Cerrar sesión', 'Sign out'),
-                      style: const TextStyle(color: Color(0xfffc3c44))),
-                  onTap: () async {
-                    await SupabaseService.signOut();
-                    if (context.mounted) {
-                      Navigator.pushNamedAndRemoveUntil(context, '/auth', (_) => false);
-                    }
-                  },
-                ),
-              ],
-            ),
+          _group(t('Privacidad', 'Privacy'), 'privacy'),
+          _group(t('Reproducción', 'Playback'), 'playback'),
+          _group(t('Teléfono y sistema', 'Phone & system'), 'phone'),
+          _group(t('Personalización', 'Customization'), 'ui'),
+          _group(t('Experimentales', 'Experimental'), 'exp'),
+          _group(t('Notificaciones', 'Notifications'), 'notif'),
+          _group(t('Biblioteca', 'Library'), 'lib'),
+          const SizedBox(height: 16),
+          Text(
+            t('$total funciones configurables', '$total configurable features'),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
           ),
         ],
       ),
     );
   }
-
-  Widget _section(String t) => Padding(
-        padding: const EdgeInsets.only(left: 4, bottom: 8),
-        child: Text(t,
-            style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                letterSpacing: 0.3)),
-      );
 }
