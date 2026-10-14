@@ -1,31 +1,22 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pokke/services/settings_service.dart';
 
-/// AI DJ: commentary via OpenRouter + on-device TTS (free voice).
-/// User accepted keys in client.
+/// AI DJ: script via OpenRouter + voice via Fish Audio TTS (free tier model).
 class AiDjService {
   static final AiDjService instance = AiDjService._();
   AiDjService._();
 
-  // OpenRouter (user-provided). Prefer env/backend later.
   static const _openRouterKey =
       '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';
+  static const _fishKey =
+      'sk-fish-59jWPqt2VJa6z8vy5lSpCsfGnjCxPRRafcsfYJogZYM';
   static const _model = 'openai/gpt-4o-mini';
 
-  final FlutterTts _tts = FlutterTts();
-  bool _ready = false;
-
-  Future<void> init() async {
-    if (_ready) return;
-    final lang = SettingsService.instance.locale == 'en' ? 'en-US' : 'es-ES';
-    await _tts.setLanguage(lang);
-    await _tts.setSpeechRate(0.48);
-    await _tts.setPitch(1.05);
-    await _tts.setVolume(1.0);
-    _ready = true;
-  }
+  final AudioPlayer _voicePlayer = AudioPlayer();
 
   Future<String> scriptFor({
     required String title,
@@ -65,10 +56,40 @@ class AiDjService {
         : 'Now playing $title, by $artist. Enjoy.';
   }
 
+  /// Fish Audio TTS → temp mp3 → play.
   Future<void> speak(String text) async {
-    await init();
-    await _tts.stop();
-    await _tts.speak(text);
+    try {
+      final res = await http
+          .post(
+            Uri.parse('https://api.fish.audio/v1/tts'),
+            headers: {
+              'Authorization': 'Bearer $_fishKey',
+              'Content-Type': 'application/json',
+              'model': 's2.1-pro-free',
+            },
+            body: jsonEncode({
+              'text': text,
+              'format': 'mp3',
+              'mp3_bitrate': 128,
+              'normalize': true,
+              'latency': 'balanced',
+              'prosody': {'speed': 1.0, 'volume': 0},
+            }),
+          )
+          .timeout(const Duration(seconds: 45));
+      if (res.statusCode != 200) {
+        throw Exception('Fish TTS ${res.statusCode}: ${res.body}');
+      }
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/pokke_dj_${DateTime.now().millisecondsSinceEpoch}.mp3');
+      await file.writeAsBytes(res.bodyBytes);
+      await _voicePlayer.stop();
+      await _voicePlayer.play(DeviceFileSource(file.path));
+    } catch (e) {
+      // Silent fail — DJ is optional
+      // ignore: avoid_print
+      print('Fish TTS error: $e');
+    }
   }
 
   Future<void> announceTrack({required String title, required String artist}) async {
@@ -76,5 +97,5 @@ class AiDjService {
     await speak(script);
   }
 
-  Future<void> stop() => _tts.stop();
+  Future<void> stop() => _voicePlayer.stop();
 }
