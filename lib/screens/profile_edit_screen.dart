@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/settings_service.dart';
+// profile theme via SettingsService
 import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -50,7 +51,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       _bioCtrl.text = profile['bio'] ?? '';
       _avatarUrl = profile['avatar_url'];
       _bannerUrl = profile['banner_url'];
-      _theme = profile['theme']?.toString() ?? 'default';
+      _theme = profile['theme']?.toString()
+          ?? SettingsService.instance.profileTheme
+          ?? 'default';
     }
     setState(() => _loading = false);
   }
@@ -94,6 +97,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         bannerUrl: banner,
       );
       // theme column best-effort
+      SettingsService.instance.profileTheme = _theme;
+      await SettingsService.instance.save();
       try {
         await SupabaseService.kokoro.from('profiles').update({
           'theme': _theme,
