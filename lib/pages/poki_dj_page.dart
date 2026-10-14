@@ -66,7 +66,7 @@ class _PokiDjPageState extends State<PokiDjPage> with SingleTickerProviderStateM
 
     // 2) Similar to recent history
     try {
-      final recent = ListeningHistory.instance.recent;
+      final recent = await ListeningHistory.instance.recent(limit: 40);
       final artists = recent.map((s) => s['artist']?.toString() ?? '').where((s) => s.isNotEmpty).toSet();
       for (final name in artists.take(6)) {
         final songs = await SupabaseService.ukiyo
