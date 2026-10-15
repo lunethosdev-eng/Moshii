@@ -8,12 +8,25 @@ import 'package:pokke/services/supabase_service.dart';
 class PlayerController extends ChangeNotifier {
   static final PlayerController instance = PlayerController._();
   PlayerController._() {
-    _playerA.onPlayerComplete.listen((_) {
-      if (!_usingB) notifyListeners();
-    });
-    _playerB.onPlayerComplete.listen((_) {
-      if (_usingB) notifyListeners();
-    });
+    void wire(AudioPlayer p, bool isB) {
+      p.onPlayerComplete.listen((_) {
+        if (_usingB == isB) notifyListeners();
+      });
+      p.onPositionChanged.listen((pos) {
+        if (_usingB == isB) {
+          position = pos;
+          notifyListeners();
+        }
+      });
+      p.onDurationChanged.listen((d) {
+        if (_usingB == isB) {
+          duration = d;
+          notifyListeners();
+        }
+      });
+    }
+    wire(_playerA, false);
+    wire(_playerB, true);
   }
 
   final AudioPlayer _playerA = AudioPlayer();
@@ -80,7 +93,7 @@ class PlayerController extends ChangeNotifier {
       _pausedForDj = false;
       notifyListeners();
       try {
-        await ListeningHistory.instance.add(song);
+        await ListeningHistory.instance.recordPlay(song);
       } catch (_) {}
       try {
         await SupabaseService.kokoro.from('song_plays').insert({
@@ -92,6 +105,27 @@ class PlayerController extends ChangeNotifier {
     } catch (e) {
       debugPrint('playSong error: $e');
     }
+  }
+
+  
+  /// Bind UI to a song without restarting playback if already current.
+  void attachSong(Map<String, dynamic> song) {
+    final key = _songKey(song);
+    if (currentSong != null && _songKey(currentSong!) == key) {
+      notifyListeners();
+      return;
+    }
+    // Soft attach: set metadata; playback may already be running
+    currentSong = song;
+    notifyListeners();
+  }
+
+  Future<void> seek(Duration position) async {
+    try {
+      await _active.seek(position);
+      this.position = position;
+      notifyListeners();
+    } catch (_) {}
   }
 
   Future<void> pauseForDj() async {
