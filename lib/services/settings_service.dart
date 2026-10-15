@@ -1,6 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class SettingsService {
+class SettingsService extends ChangeNotifier {
   static final SettingsService instance = SettingsService._();
   SettingsService._();
 
@@ -208,5 +209,6 @@ class SettingsService {
     for (final e in flags.entries) {
       await p.setBool('flag_${e.key}', e.value);
     }
+    notifyListeners();
   }
 }
