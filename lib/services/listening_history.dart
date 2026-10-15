@@ -28,6 +28,8 @@ class ListeningHistory {
     await prefs.setString(_key, jsonEncode(_items.take(200).toList()));
   }
 
+  Future<void> add(Map<String, dynamic> song) => recordPlay(song);
+
   Future<void> recordPlay(Map<String, dynamic> song) async {
     await load();
     final id = (song['id'] ?? song['title']).toString();
