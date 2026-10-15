@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:pokke/services/player_controller.dart';
 
@@ -13,6 +14,10 @@ class MiniPlayer extends StatelessWidget {
       builder: (context, _) {
         final pc = PlayerController.instance;
         if (pc.current == null) return const SizedBox.shrink();
+        final settings = SettingsService.instance;
+        if (!settings.showMiniPlayer || !settings.flag('ui_mini_player', def: true)) {
+          return const SizedBox.shrink();
+        }
 
         final s = pc.current!;
         final cover = s['cover_url'];
