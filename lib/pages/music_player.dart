@@ -11,7 +11,8 @@ import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/follow_service.dart';
-import 'package:pokke/services/ai_dj_service.dart';
+import 'package:pokke/services/cast_service.dart';
+import 'package:pokke/screens/playlist_detail_screen.dart';
 
 class MusicPlayer extends StatefulWidget {
   MusicPlayer({super.key});
@@ -28,8 +29,6 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
   String? _lyrics;
   bool _loadingLyrics = false;
   double _dragDy = 0;
-  late AnimationController _bounceCtrl;
-  late Animation<double> _bounceAnim;
   List<Map<String, dynamic>> _queue = [];
 
   String t(String es, String en) => SettingsService.instance.locale == 'en' ? en : es;
@@ -37,10 +36,6 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-    _bounceCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
-    _bounceAnim = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _bounceCtrl, curve: Curves.elasticOut),
-    );
     _loadQueue();
   }
 
@@ -58,7 +53,6 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
 
   @override
   void dispose() {
-    _bounceCtrl.dispose();
     super.dispose();
   }
 
@@ -119,7 +113,12 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
     ));
   }
 
-  void _cast() {
+  void _cast() async {
+    final url = _song?['audio_url']?.toString() ?? '';
+    final title = _song?['title']?.toString() ?? '';
+    final artist = _song?['artist']?.toString() ?? '';
+    final cover = _song?['cover_url']?.toString();
+    final devices = await CastService.devices();
     showLiquidSheet(
       context: context,
       child: SafeArea(
@@ -133,20 +132,40 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
               Text(t('Transmitir', 'Cast'),
                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              Text(
-                t(
-                  'Usa el botón de Cast de tu sistema (notificación multimedia o Configuración → Conectar) para enviar a Android TV / Chromecast.',
-                  'Use your system Cast button (media notification or Settings → Connect) to send to Android TV / Chromecast.',
-                ),
-                style: TextStyle(color: Colors.white.withOpacity(0.6), height: 1.4),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
+              if (devices.isEmpty)
+                Text(
+                  t(
+                    'Busca Chromecast / Android TV en la red. Si no aparece, usa el selector del sistema.',
+                    'Looking for Chromecast / Android TV. If none, use the system picker.',
+                  ),
+                  style: TextStyle(color: Colors.white.withOpacity(0.6), height: 1.4),
+                  textAlign: TextAlign.center,
+                )
+              else
+                ...devices.map((d) => ListTile(
+                      leading: const Icon(Icons.tv, color: Colors.white70),
+                      title: Text(d['name'] ?? 'Device', style: const TextStyle(color: Colors.white)),
+                      onTap: () async {
+                        Navigator.pop(context);
+                        final ok = await CastService.castUrl(
+                          url: url, title: title, artist: artist, imageUrl: cover,
+                        );
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(ok
+                              ? t('Transmitiendo…', 'Casting…')
+                              : t('No se pudo conectar', 'Could not connect')),
+                        ));
+                      },
+                    )),
               ListTile(
-                leading: const Icon(Icons.tv, color: Colors.white70),
-                title: Text(t('Abrir ajustes de conexión', 'Open connection settings'),
+                leading: const Icon(Icons.cast_connected, color: Colors.white70),
+                title: Text(t('Selector del sistema', 'System cast picker'),
                     style: const TextStyle(color: Colors.white)),
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  Navigator.pop(context);
+                  CastService.openSystemCastPicker();
+                },
               ),
             ],
           ),
@@ -262,7 +281,10 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
               title: Text(t('Agregar a playlist', 'Add to playlist'), style: const TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.pushNamed(context, '/playlists');
+                final song = _song ?? PlayerController.instance.current;
+                if (song != null) {
+                  PlaylistActions.showAddToPlaylistSheet(context, song: song);
+                }
               },
             ),
             ListTile(
@@ -290,21 +312,6 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
               onTap: () {
                 Navigator.pop(context);
                 _share();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.record_voice_over, color: Colors.white70),
-              title: Text(t('Presentar con AI DJ', 'Announce with AI DJ'), style: const TextStyle(color: Colors.white)),
-              subtitle: Text(t('Voz del dispositivo', 'On-device voice'),
-                  style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
-              onTap: () async {
-                Navigator.pop(context);
-                final title = _song?['title']?.toString() ?? '';
-                final artist = _song?['artist']?.toString() ?? '';
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(t('AI DJ hablando…', 'AI DJ speaking…'))),
-                );
-                await AiDjService.instance.announceTrack(title: title, artist: artist);
               },
             ),
             const SizedBox(height: 8),
@@ -437,25 +444,38 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
 
   void _onVerticalDragUpdate(DragUpdateDetails d) {
     final dy = d.primaryDelta ?? 0;
-    if (dy > 0) {
-      // pulling down
-      setState(() => _dragDy = (_dragDy + dy).clamp(0, 220));
-    } else if (dy < 0 && _dragDy <= 0) {
-      // pulling up → bounce
-      if (!_bounceCtrl.isAnimating) {
-        HapticFeedback.lightImpact();
-        _bounceCtrl.forward(from: 0);
-      }
-    } else if (dy < 0) {
-      setState(() => _dragDy = (_dragDy + dy).clamp(0, 220));
+    // Only track downward drag. Upward while at top is ignored (no bounce).
+    if (dy > 0 || _dragDy > 0) {
+      setState(() => _dragDy = (_dragDy + dy).clamp(0.0, 480.0));
     }
   }
 
-  void _onVerticalDragEnd(DragEndDetails d) {
-    if (_dragDy > 100 || (d.primaryVelocity ?? 0) > 700) {
-      Navigator.of(context).maybePop();
+  Future<void> _onVerticalDragEnd(DragEndDetails d) async {
+    final v = d.primaryVelocity ?? 0;
+    final h = MediaQuery.of(context).size.height;
+    final shouldClose = _dragDy > h * 0.18 || v > 900;
+    if (shouldClose) {
+      // Animate pure slide-down off screen, then pop (no spring / bounce).
+      final start = _dragDy;
+      final frames = SettingsService.instance.reduceAnimations ? 8 : 14;
+      for (var i = 1; i <= frames; i++) {
+        if (!mounted) return;
+        setState(() => _dragDy = start + (h - start) * (i / frames));
+        await Future.delayed(const Duration(milliseconds: 12));
+      }
+      if (mounted) Navigator.of(context).maybePop();
     } else {
-      setState(() => _dragDy = 0);
+      // Smooth ease back — not elastic
+      final start = _dragDy;
+      final frames = SettingsService.instance.reduceAnimations ? 6 : 12;
+      for (var i = 1; i <= frames; i++) {
+        if (!mounted) return;
+        final t = i / frames;
+        final eased = Curves.easeOutCubic.transform(t);
+        setState(() => _dragDy = start * (1 - eased));
+        await Future.delayed(const Duration(milliseconds: 12));
+      }
+      if (mounted) setState(() => _dragDy = 0);
     }
   }
 
@@ -487,12 +507,11 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
     final cover = _song?['cover_url'] ?? _song?['animated_cover_url'] ?? pc.current?['cover_url'];
 
     return AnimatedBuilder(
-      animation: Listenable.merge([pc, _bounceCtrl]),
+      animation: pc,
       builder: (context, _) {
         final pos = pc.position;
         final dur = pc.duration.inMilliseconds > 0 ? pc.duration : const Duration(seconds: 1);
         final progress = (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0);
-        final bounceOffset = (1 - _bounceAnim.value) * -12; // slight up bounce
 
         if (_lyricsMode) {
           return Scaffold(
@@ -571,8 +590,12 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
           );
         }
 
-        return Transform.translate(
-          offset: Offset(0, _dragDy + bounceOffset),
+        final h = MediaQuery.of(context).size.height;
+        final fade = (1 - (_dragDy / (h * 0.55))).clamp(0.0, 1.0);
+        return Opacity(
+          opacity: fade,
+          child: Transform.translate(
+          offset: Offset(0, _dragDy),
           child: GestureDetector(
             onVerticalDragUpdate: _onVerticalDragUpdate,
             onVerticalDragEnd: _onVerticalDragEnd,
@@ -796,6 +819,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                 ],
               ),
             ),
+          ),
           ),
         );
       },
