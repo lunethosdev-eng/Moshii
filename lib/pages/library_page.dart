@@ -28,6 +28,10 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Future<void> _load() async {
+    if (!SettingsService.instance.flag('priv_history_local', def: true)) {
+      if (mounted) setState(() => _recent = []);
+      return;
+    }
     final r = await ListeningHistory.instance.recent(limit: 50);
     if (mounted) setState(() => _recent = r);
   }
@@ -58,7 +62,9 @@ class _LibraryPageState extends State<LibraryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0C0C0E),
+      backgroundColor: SettingsService.instance.amoled
+          ? Colors.black
+          : const Color(0xFF0C0C0E),
       appBar: CompactHeader(title: t('Biblioteca', 'Library'), collapsed: _collapsed),
       body: RefreshIndicator(
         color: const Color(0xfffc3c44),
@@ -70,18 +76,6 @@ class _LibraryPageState extends State<LibraryPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ListTile(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                tileColor: const Color(0xFF1A0A2E).withOpacity(0.6),
-                leading: const Icon(Icons.auto_awesome, color: Color(0xFF2EE6A6)),
-                title: Text(t('Poki DJ', 'Poki DJ'),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                subtitle: Text(t('Radio IA con tus gustos', 'AI radio from your taste'),
-                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-                trailing: const Icon(Icons.play_circle_fill, color: Color(0xFF2EE6A6), size: 32),
-                onTap: () => Navigator.pushNamed(context, '/poki_dj'),
-              ),
-              const SizedBox(height: 8),
               _menuRow(Icons.playlist_play, 'Playlists', () => Navigator.pushNamed(context, '/playlists')),
               _menuRow(Icons.person_outline, t('Artistas', 'Artists'),
                   () => Navigator.pushNamed(context, '/artistlist')),
