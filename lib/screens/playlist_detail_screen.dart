@@ -70,7 +70,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
               .eq('id', sid)
               .maybeSingle();
           if (song != null) {
-            out.add({...r, ...Map<String, dynamic>.from(song)});
+            out.add({
+              ...r,
+              ...Map<String, dynamic>.from(song),
+              'audio_url': song['audio_url'] ?? song['stream_url'] ?? r['stream_url'],
+            });
           } else {
             out.add(Map<String, dynamic>.from(r));
           }
@@ -679,10 +683,10 @@ class PlaylistActions {
       await SupabaseService.kokoro.from('playlist_songs').insert({
         'playlist_id': playlistId,
         'song_id': song['id']?.toString(),
-        'title': song['title'],
-        'artist': song['artist'],
-        'cover_url': song['cover_url'],
-        'audio_url': song['audio_url'] ?? song['stream_url'],
+        'title': song['title']?.toString() ?? '',
+        'artist': song['artist']?.toString() ?? '',
+        'cover_url': song['cover_url']?.toString(),
+        'stream_url': song['audio_url'] ?? song['stream_url'],
         'position': pos,
       });
       return true;
