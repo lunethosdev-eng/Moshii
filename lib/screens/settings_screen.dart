@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:pokke/services/settings_service.dart';
+import 'package:pokke/services/audio_cache_service.dart';
+import 'package:pokke/services/spotify_service.dart';
+import 'package:pokke/widgets/liquid_glass.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -10,205 +12,294 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final s = SettingsService.instance;
-  String _filter = '';
+  String t(String es, String en) => SettingsService.instance.locale == 'en' ? en : es;
 
   @override
-  void initState() {
-    super.initState();
-    s.load().then((_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  Future<void> _persist() async {
-    await s.save();
-    setState(() {});
-  }
-
-  String t(String es, String en) => s.locale == 'en' ? en : es;
-
-  Widget _section(String title) => Padding(
-        padding: const EdgeInsets.fromLTRB(4, 18, 4, 8),
-        child: Text(title,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              letterSpacing: 0.6,
-            )),
-      );
-
-  Widget _flagTile(Map<String, String> item) {
-    final id = item['id']!;
-    final label = s.locale == 'en' ? item['en']! : item['es']!;
-    return SwitchListTile(
-      title: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
-      value: s.flag(id),
-      activeColor: const Color(0xfffc3c44),
-      onChanged: (v) {
-        s.setFlag(id, v);
-        // Keep legacy mirrors in sync
-        if (id == 'ui_liquid_glass') s.liquidGlassEnabled = v;
-        if (id == 'ui_reduce_motion') s.reduceAnimations = v;
-        if (id == 'ui_mini_player') s.showMiniPlayer = v;
-        _persist();
+  Widget build(BuildContext context) {
+    final s = SettingsService.instance;
+    return AnimatedBuilder(
+      animation: s,
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: s.amoled ? Colors.black : const Color(0xFF0C0C0E),
+          appBar: AppBar(
+            title: Text(t('Ajustes', 'Settings')),
+            backgroundColor: Colors.transparent,
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+            children: [
+              _section(t('Idioma', 'Language')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  children: [
+                    RadioListTile<String>(
+                      value: 'es',
+                      groupValue: s.locale,
+                      activeColor: const Color(0xfffc3c44),
+                      title: const Text('Español', style: TextStyle(color: Colors.white)),
+                      onChanged: (v) async {
+                        s.locale = v!;
+                        await s.save();
+                      },
+                    ),
+                    RadioListTile<String>(
+                      value: 'en',
+                      groupValue: s.locale,
+                      activeColor: const Color(0xfffc3c44),
+                      title: const Text('English', style: TextStyle(color: Colors.white)),
+                      onChanged: (v) async {
+                        s.locale = v!;
+                        await s.save();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              _section(t('Apariencia', 'Appearance')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Liquid Glass', 'Liquid Glass'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.liquidGlassEnabled,
+                      onChanged: (v) => s.setFlag('ui_liquid_glass', v),
+                    ),
+                    if (s.liquidGlassEnabled) ...[
+                      ListTile(
+                        title: Text(t('Opacidad', 'Opacity'),
+                            style: const TextStyle(color: Colors.white70)),
+                        subtitle: Slider(
+                          value: s.glassOpacity.clamp(0.04, 0.4),
+                          min: 0.04,
+                          max: 0.4,
+                          activeColor: const Color(0xfffc3c44),
+                          onChanged: (v) {
+                            s.glassOpacity = v;
+                            s.save();
+                          },
+                        ),
+                      ),
+                      ListTile(
+                        title: Text(t('Blur', 'Blur'),
+                            style: const TextStyle(color: Colors.white70)),
+                        subtitle: Slider(
+                          value: s.glassBlur.clamp(8, 40),
+                          min: 8,
+                          max: 40,
+                          activeColor: const Color(0xfffc3c44),
+                          onChanged: (v) {
+                            s.glassBlur = v;
+                            s.save();
+                          },
+                        ),
+                      ),
+                    ],
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Tema AMOLED', 'AMOLED theme'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.amoled,
+                      onChanged: (v) => s.setFlag('ui_amoled', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Reducir animaciones', 'Reduce animations'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.reduceAnimations,
+                      onChanged: (v) => s.setFlag('ui_reduce_anim', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Mini player', 'Mini player'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.showMiniPlayer,
+                      onChanged: (v) => s.setFlag('ui_mini_player', v),
+                    ),
+                  ],
+                ),
+              ),
+              _section(t('Reproducción', 'Playback')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Crossfade', 'Crossfade'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.crossfade,
+                      onChanged: (v) => s.setFlag('play_crossfade', v),
+                    ),
+                    if (s.crossfade)
+                      ListTile(
+                        title: Text(
+                            t('Duración (${s.crossfadeSeconds.round()}s)',
+                                'Duration (${s.crossfadeSeconds.round()}s)'),
+                            style: const TextStyle(color: Colors.white70)),
+                        subtitle: Slider(
+                          value: s.crossfadeSeconds.clamp(2, 8),
+                          min: 2,
+                          max: 8,
+                          divisions: 6,
+                          activeColor: const Color(0xfffc3c44),
+                          onChanged: (v) {
+                            s.crossfadeSeconds = v;
+                            s.save();
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              _section(t('Privacidad', 'Privacy')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Historial local', 'Local history'),
+                          style: const TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                          t('Guardar lo que escuchas en el dispositivo',
+                              'Save what you play on device'),
+                          style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+                      value: s.historyLocal,
+                      onChanged: (v) => s.setFlag('priv_history_local', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Perfil público', 'Public profile'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.profilePublic,
+                      onChanged: (v) => s.setFlag('priv_profile_public', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Descargas solo Wi‑Fi', 'Downloads on Wi‑Fi only'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.downloadsWifiOnly,
+                      onChanged: (v) => s.setFlag('priv_download_wifi', v),
+                    ),
+                  ],
+                ),
+              ),
+              _section(t('Almacenamiento', 'Storage')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.white70),
+                  title: Text(t('Caché de audio', 'Audio cache'),
+                      style: const TextStyle(color: Colors.white)),
+                  subtitle: FutureBuilder<int>(
+                    future: AudioCacheService.instance.cachedSongCount(),
+                    builder: (_, snap) {
+                      final n = snap.data ?? 0;
+                      return Text(
+                        t('$n canciones en caché', '$n songs cached'),
+                        style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12),
+                      );
+                    },
+                  ),
+                  trailing: Text(t('OK', 'OK'),
+                      style: TextStyle(color: Colors.white.withOpacity(0.35))),
+                ),
+              ),
+              _section(t('Cuentas vinculadas', 'Linked accounts')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: ListTile(
+                  leading: const Icon(Icons.library_music, color: Color(0xFF1DB954)),
+                  title: Text(t('Spotify', 'Spotify'),
+                      style: const TextStyle(color: Colors.white)),
+                  subtitle: Text(
+                    SpotifyService.instance.isLinked
+                        ? t('Conectado', 'Connected')
+                        : t('Importar playlists', 'Import playlists'),
+                    style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12),
+                  ),
+                  trailing: TextButton(
+                    onPressed: () async {
+                      await SpotifyService.instance.load();
+                      if (SpotifyService.instance.isLinked) {
+                        await SpotifyService.instance.unlink();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(t('Spotify desconectado', 'Spotify disconnected'))),
+                          );
+                          setState(() {});
+                        }
+                        return;
+                      }
+                      final ok = await SpotifyService.instance.connect();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(ok
+                                ? t('Spotify conectado', 'Spotify connected')
+                                : t('No se pudo conectar', 'Could not connect')),
+                          ),
+                        );
+                        setState(() {});
+                      }
+                    },
+                    child: Text(
+                      SpotifyService.instance.isLinked
+                          ? t('Salir', 'Unlink')
+                          : t('Conectar', 'Connect'),
+                      style: const TextStyle(color: Color(0xFF1DB954), fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ),
+              _section(t('Cuenta', 'Account')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.person_outline, color: Colors.white70),
+                      title: Text(t('Editar perfil', 'Edit profile'),
+                          style: const TextStyle(color: Colors.white)),
+                      trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                      onTap: () => Navigator.pushNamed(context, '/profile_edit'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.admin_panel_settings_outlined, color: Colors.white70),
+                      title: Text(t('Admin', 'Admin'), style: const TextStyle(color: Colors.white)),
+                      trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                      onTap: () => Navigator.pushNamed(context, '/admin'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Center(
+                child: Text('pokke · 1.0.0',
+                    style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 12)),
+              ),
+            ],
+          ),
+        );
       },
     );
   }
 
-  List<Map<String, String>> _byCat(String cat) {
-    final q = _filter.trim().toLowerCase();
-    return SettingsService.catalog.where((e) {
-      if (e['cat'] != cat) return false;
-      if (q.isEmpty) return true;
-      return (e['es']!.toLowerCase().contains(q) || e['en']!.toLowerCase().contains(q));
-    }).toList();
-  }
-
-  Widget _group(String title, String cat) {
-    final items = _byCat(cat);
-    if (items.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _section(title),
-        LiquidGlass(
-          blur: 16,
-          opacity: 0.08,
-          borderRadius: BorderRadius.circular(16),
-          child: Column(children: items.map(_flagTile).toList()),
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final total = SettingsService.catalog.length;
-    return Scaffold(
-      backgroundColor: const Color(0xFF0C0C0E),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        title: Text(t('Ajustes', 'Settings'), style: const TextStyle(fontWeight: FontWeight.w700)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 48),
-        children: [
-          LiquidGlass(
-            blur: 18,
-            opacity: 0.1,
-            borderRadius: BorderRadius.circular(14),
-            child: TextField(
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: t('Buscar en $total ajustes…', 'Search $total settings…'),
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.35)),
-                prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.45)),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              ),
-              onChanged: (v) => setState(() => _filter = v),
-            ),
-          ),
-          _section(t('Idioma', 'Language')),
-          LiquidGlass(
-            blur: 18,
-            opacity: 0.08,
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              children: [
-                RadioListTile<String>(
-                  title: const Text('Español', style: TextStyle(color: Colors.white)),
-                  value: 'es',
-                  groupValue: s.locale,
-                  activeColor: const Color(0xfffc3c44),
-                  onChanged: (v) {
-                    s.locale = v!;
-                    _persist();
-                  },
-                ),
-                RadioListTile<String>(
-                  title: const Text('English', style: TextStyle(color: Colors.white)),
-                  value: 'en',
-                  groupValue: s.locale,
-                  activeColor: const Color(0xfffc3c44),
-                  onChanged: (v) {
-                    s.locale = v!;
-                    _persist();
-                  },
-                ),
-              ],
-            ),
-          ),
-          _section(t('Liquid Glass', 'Liquid Glass')),
-          LiquidGlass(
-            blur: 18,
-            opacity: 0.08,
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              children: [
-                SwitchListTile(
-                  title: Text(t('Activar Liquid Glass', 'Enable Liquid Glass'),
-                      style: const TextStyle(color: Colors.white)),
-                  value: s.liquidGlassEnabled,
-                  activeColor: const Color(0xfffc3c44),
-                  onChanged: (v) {
-                    s.liquidGlassEnabled = v;
-                    s.setFlag('ui_liquid_glass', v);
-                    _persist();
-                  },
-                ),
-                ListTile(
-                  title: Text(t('Opacidad', 'Opacity'), style: const TextStyle(color: Colors.white70)),
-                  subtitle: Slider(
-                    value: s.glassOpacity.clamp(0.04, 0.4),
-                    min: 0.04,
-                    max: 0.4,
-                    activeColor: const Color(0xfffc3c44),
-                    onChanged: (v) {
-                      s.glassOpacity = v;
-                      setState(() {});
-                    },
-                    onChangeEnd: (_) => _persist(),
-                  ),
-                ),
-                ListTile(
-                  title: Text(t('Blur', 'Blur'), style: const TextStyle(color: Colors.white70)),
-                  subtitle: Slider(
-                    value: s.glassBlur.clamp(8, 40),
-                    min: 8,
-                    max: 40,
-                    activeColor: const Color(0xfffc3c44),
-                    onChanged: (v) {
-                      s.glassBlur = v;
-                      setState(() {});
-                    },
-                    onChangeEnd: (_) => _persist(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _group(t('Privacidad', 'Privacy'), 'privacy'),
-          _group(t('Reproducción', 'Playback'), 'playback'),
-          _group(t('Teléfono y sistema', 'Phone & system'), 'phone'),
-          _group(t('Personalización', 'Customization'), 'ui'),
-          _group(t('Experimentales', 'Experimental'), 'exp'),
-          _group(t('Notificaciones', 'Notifications'), 'notif'),
-          _group(t('Biblioteca', 'Library'), 'lib'),
-          const SizedBox(height: 16),
-          Text(
-            t('$total funciones configurables', '$total configurable features'),
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
-          ),
-        ],
-      ),
+  Widget _section(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 22, 4, 10),
+      child: Text(title,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.5),
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+          )),
     );
   }
 }
