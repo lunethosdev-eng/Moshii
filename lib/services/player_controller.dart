@@ -36,6 +36,41 @@ class PlayerController extends ChangeNotifier {
 
   Map<String, dynamic>? currentSong;
   Map<String, dynamic>? get current => currentSong;
+
+  List<Map<String, dynamic>> queue = [];
+  int queueIndex = 0;
+  bool shuffleMode = false;
+
+  Future<void> playPlaylist(List<Map<String, dynamic>> songs, {bool shuffle = false, int startIndex = 0}) async {
+    if (songs.isEmpty) return;
+    queue = List<Map<String, dynamic>>.from(songs);
+    shuffleMode = shuffle;
+    if (shuffle) {
+      queue.shuffle();
+      queueIndex = 0;
+    } else {
+      queueIndex = startIndex.clamp(0, queue.length - 1);
+    }
+    // wire completion to next
+    _active.onPlayerComplete.listen((_) {
+      playNextInQueue();
+    });
+    await playSong(queue[queueIndex], forceRestart: true);
+  }
+
+  Future<void> playNextInQueue() async {
+    if (queue.isEmpty) return;
+    queueIndex = (queueIndex + 1) % queue.length;
+    await playSong(queue[queueIndex], forceRestart: true);
+  }
+
+  Future<void> playPreviousInQueue() async {
+    if (queue.isEmpty) return;
+    queueIndex = (queueIndex - 1) < 0 ? queue.length - 1 : queueIndex - 1;
+    await playSong(queue[queueIndex], forceRestart: true);
+  }
+
+
   bool isPlaying = false;
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
@@ -93,7 +128,9 @@ class PlayerController extends ChangeNotifier {
       _pausedForDj = false;
       notifyListeners();
       try {
+        if (SettingsService.instance.historyLocal) {
         await ListeningHistory.instance.recordPlay(song);
+      }
       } catch (_) {}
       try {
         await SupabaseService.kokoro.from('song_plays').insert({
@@ -172,9 +209,10 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> crossfadeTo(Map<String, dynamic> next, {Duration fade = const Duration(seconds: 4)}) async {
+  Future<void> crossfadeTo(Map<String, dynamic> next, {Duration? fade}) async {
     final s = SettingsService.instance;
-    if (!s.flag('play_crossfade', def: true) && !s.flag('exp_dual_player', def: true)) {
+    fade ??= Duration(milliseconds: (s.crossfadeSeconds * 1000).round());
+    if (!s.crossfade && !s.flag('play_crossfade', def: true)) {
       await playSong(next, forceRestart: true);
       return;
     }
