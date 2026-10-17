@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/settings_service.dart';
-import 'dart:io';
+import 'package:pokke/screens/playlist_detail_screen.dart';
 
 class PlaylistsScreen extends StatefulWidget {
   const PlaylistsScreen({super.key});
@@ -29,7 +31,10 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     try {
       final uid = SupabaseService.currentUser?.id;
       if (uid == null) {
-        setState(() { _playlists = []; _loading = false; });
+        setState(() {
+          _playlists = [];
+          _loading = false;
+        });
         return;
       }
       final res = await SupabaseService.kokoro
@@ -41,11 +46,12 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     } catch (_) {
       setState(() => _playlists = []);
     }
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _create() async {
     final nameCtrl = TextEditingController();
+    XFile? cover;
     File? coverFile;
     await showModalBottomSheet(
       context: context,
@@ -53,12 +59,11 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 12, right: 12, top: 12),
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: LiquidGlass(
-            blur: 32,
-            opacity: 0.16,
-            borderRadius: BorderRadius.circular(22),
-            enableSpecular: true,
+            blur: 28,
+            opacity: 0.14,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
             child: StatefulBuilder(
               builder: (ctx, setModal) {
                 return Padding(
@@ -67,44 +72,54 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(t('Nueva playlist', 'New playlist'),
-                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 16),
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 14),
                       GestureDetector(
                         onTap: () async {
-                          final x = await ImagePicker().pickImage(source: ImageSource.gallery);
-                          if (x != null) setModal(() => coverFile = File(x.path));
+                          final f = await ImagePicker().pickImage(source: ImageSource.gallery);
+                          if (f != null) {
+                            setModal(() {
+                              cover = f;
+                              coverFile = File(f.path);
+                            });
+                          }
                         },
                         child: Container(
-                          height: 96, width: 96,
-                          decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(12)),
-                          child: coverFile != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.file(coverFile!, fit: BoxFit.cover))
-                              : const Icon(Icons.add_photo_alternate, color: Colors.white38, size: 36),
+                          height: 96,
+                          width: 96,
+                          decoration: BoxDecoration(
+                            color: Colors.white12,
+                            borderRadius: BorderRadius.circular(12),
+                            image: coverFile != null
+                                ? DecorationImage(image: FileImage(coverFile!), fit: BoxFit.cover)
+                                : null,
+                          ),
+                          child: coverFile == null
+                              ? const Icon(Icons.add_photo_alternate, color: Colors.white38, size: 36)
+                              : null,
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       TextField(
                         controller: nameCtrl,
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
                           hintText: t('Nombre', 'Name'),
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.35)),
+                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
                           filled: true,
-                          fillColor: Colors.white10,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                          fillColor: Colors.white.withOpacity(0.06),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xfffc3c44),
-                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: () async {
                             final name = nameCtrl.text.trim();
@@ -112,24 +127,34 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                             final uid = SupabaseService.currentUser?.id;
                             if (uid == null) return;
                             String? coverUrl;
-                            if (coverFile != null) {
-                              try {
-                                final path = 'playlist_covers/$uid/${DateTime.now().millisecondsSinceEpoch}.jpg';
+                            try {
+                              if (coverFile != null) {
+                                final path =
+                                    'playlist_covers/$uid/${DateTime.now().millisecondsSinceEpoch}.jpg';
                                 await SupabaseService.kokoro.storage.from('avatars').upload(path, coverFile!);
-                                coverUrl = SupabaseService.kokoro.storage.from('avatars').getPublicUrl(path);
-                              } catch (_) {}
+                                coverUrl =
+                                    SupabaseService.kokoro.storage.from('avatars').getPublicUrl(path);
+                              }
+                              await SupabaseService.kokoro.from('playlists').insert({
+                                'user_id': uid,
+                                'name': name,
+                                if (coverUrl != null) 'cover_url': coverUrl,
+                              });
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              await _load();
+                            } catch (e) {
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(content: Text('$e')),
+                                );
+                              }
                             }
-                            await SupabaseService.kokoro.from('playlists').insert({
-                              'user_id': uid,
-                              'name': name,
-                              'cover_url': coverUrl,
-                            });
-                            if (ctx.mounted) Navigator.pop(ctx);
-                            _load();
                           },
-                          child: Text(t('Crear', 'Create')),
+                          child: Text(t('Crear', 'Create'),
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
                         ),
                       ),
+                      const SizedBox(height: 8),
                     ],
                   ),
                 );
@@ -144,10 +169,10 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0C0C0E),
+      backgroundColor: SettingsService.instance.amoled ? Colors.black : const Color(0xFF0C0C0E),
       appBar: AppBar(
+        title: Text(t('Playlists', 'Playlists')),
         backgroundColor: Colors.transparent,
-        title: Text(t('Playlists', 'Playlists'), style: const TextStyle(fontWeight: FontWeight.w700)),
         actions: [
           IconButton(onPressed: _create, icon: const Icon(Icons.add, color: Colors.white)),
         ],
@@ -159,16 +184,13 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.queue_music, size: 64, color: Colors.white.withOpacity(0.2)),
-                      const SizedBox(height: 12),
                       Text(t('Crea tu primera playlist', 'Create your first playlist'),
                           style: TextStyle(color: Colors.white.withOpacity(0.5))),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xfffc3c44)),
                         onPressed: _create,
-                        child: Text(t('Crear playlist', 'Create playlist'),
-                            style: const TextStyle(color: Colors.white)),
+                        child: Text(t('Crear playlist', 'Create playlist')),
                       ),
                     ],
                   ),
@@ -186,20 +208,55 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                         opacity: 0.07,
                         borderRadius: BorderRadius.circular(14),
                         child: ListTile(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PlaylistDetailScreen(playlist: pl),
+                              ),
+                            ).then((_) => _load());
+                          },
                           leading: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: cover != null
-                                ? Image.network(cover.toString(), width: 52, height: 52, fit: BoxFit.cover,
+                                ? Image.network(
+                                    cover.toString(),
+                                    width: 52,
+                                    height: 52,
+                                    fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) => Container(
-                                        width: 52, height: 52, color: Colors.white12,
-                                        child: const Icon(Icons.queue_music, color: Colors.white38)))
+                                      width: 52,
+                                      height: 52,
+                                      color: Colors.white12,
+                                      child: const Icon(Icons.queue_music, color: Colors.white38),
+                                    ),
+                                  )
                                 : Container(
-                                    width: 52, height: 52, color: Colors.white12,
-                                    child: const Icon(Icons.queue_music, color: Colors.white38)),
+                                    width: 52,
+                                    height: 52,
+                                    color: Colors.white12,
+                                    child: const Icon(Icons.queue_music, color: Colors.white38),
+                                  ),
                           ),
                           title: Text(pl['name'] ?? '',
                               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                          trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.ios_share, color: Colors.white54, size: 20),
+                                onPressed: () {
+                                  final id = pl['id'] ?? '';
+                                  final name = pl['name'] ?? 'playlist';
+                                  Share.share(t(
+                                    'Escucha mi playlist "$name" en pokke\npokke://playlist/$id',
+                                    'Listen to my playlist "$name" on pokke\npokke://playlist/$id',
+                                  ));
+                                },
+                              ),
+                              const Icon(Icons.chevron_right, color: Colors.white38),
+                            ],
+                          ),
                         ),
                       ),
                     );
