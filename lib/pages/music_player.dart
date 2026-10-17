@@ -103,14 +103,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
   }
 
   void _share() {
-    final title = _song?['title'] ?? '';
-    final artist = _song?['artist'] ?? '';
-    final id = _song?['id'] ?? '';
-    // Domain pokke.app is taken — use deep-link style text until you own a domain
-    Share.share(t(
-      'Escucha "$title" de $artist en pokke\npokke://song/$id',
-      'Listen to "$title" by $artist on pokke\npokke://song/$id',
-    ));
+    _openLiquidShare();
   }
 
   void _cast() async {
@@ -825,4 +818,70 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
       },
     );
   }
+
+  void _openLiquidShare() {
+    final s = PlayerController.instance.currentSong;
+    if (s == null) return;
+    final title = (s['title'] ?? '').toString();
+    final artist = (s['artist'] ?? '').toString();
+    final id = (s['id'] ?? '').toString();
+    final link = 'https://pokke.app/song/$id';
+    final text = SettingsService.instance.locale == 'en'
+        ? 'Listen to "$title" by $artist on pokke\n$link'
+        : 'Escucha "$title" de $artist en pokke\n$link';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => LiquidGlass(
+        blur: 28,
+        opacity: 0.16,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(SettingsService.instance.locale == 'en' ? 'Share' : 'Compartir',
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Text(text, style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(Icons.copy, color: Colors.white70),
+                  title: Text(SettingsService.instance.locale == 'en' ? 'Copy link' : 'Copiar enlace',
+                      style: const TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: link));
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(SettingsService.instance.locale == 'en' ? 'Copied' : 'Copiado')),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.ios_share, color: Colors.white70),
+                  title: Text(SettingsService.instance.locale == 'en' ? 'More apps…' : 'Más apps…',
+                      style: const TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Share.share(text);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
 }
