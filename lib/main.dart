@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/listening_history.dart';
+import 'package:pokke/services/spotify_service.dart';
 import 'package:pokke/screens/auth_screen.dart';
 import 'package:pokke/Bottom%20NavBar/bottom_nav.dart';
 import 'package:pokke/pages/list.dart';
@@ -21,13 +22,13 @@ import 'package:pokke/screens/admin_screen.dart';
 import 'package:pokke/screens/settings_screen.dart';
 import 'package:pokke/screens/playlists_screen.dart';
 import 'package:pokke/screens/wrap_screen.dart';
-import 'package:pokke/pages/poki_dj_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SupabaseService.init();
   await SettingsService.instance.load();
   await ListeningHistory.instance.load();
+  await SpotifyService.instance.load();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
@@ -71,7 +72,6 @@ class PokkeApp extends StatelessWidget {
         '/settings': (context) => const SettingsScreen(),
         '/playlists': (context) => const PlaylistsScreen(),
         '/wrap': (context) => const WrapScreen(),
-        '/poki_dj': (context) => const PokiDjPage(),
       },
     );
   }
