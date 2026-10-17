@@ -76,3 +76,22 @@ class PokkeApp extends StatelessWidget {
     );
   }
 }
+
+
+class SlideUpPageRoute<T> extends PageRouteBuilder<T> {
+  final Widget page;
+  SlideUpPageRoute({required this.page})
+      : super(
+          pageBuilder: (_, __, ___) => page,
+          transitionsBuilder: (_, anim, __, child) {
+            final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
+            return SlideTransition(
+              position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(curved),
+              child: FadeTransition(opacity: curved, child: child),
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 380),
+          reverseTransitionDuration: const Duration(milliseconds: 320),
+        );
+}
+
