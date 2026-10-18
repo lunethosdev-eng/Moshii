@@ -242,7 +242,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           SnackBar(
                             content: Text(ok
                                 ? t('Spotify conectado', 'Spotify connected')
-                                : t('No se pudo conectar', 'Could not connect')),
+                                : ('${SpotifyService.instance.lastError ?? }'.isEmpty
+                              ? t('No se pudo conectar. Revisa Client ID y redirect pokke://spotify-callback en Spotify Dashboard', 'Could not connect. Check Client ID and pokke://spotify-callback in Spotify Dashboard')
+                              : SpotifyService.instance.lastError!)),
                           ),
                         );
                         setState(() {});
