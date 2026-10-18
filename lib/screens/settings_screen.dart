@@ -278,6 +278,255 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
               ),
+
+              _section(t('Player · Slider', 'Player · Slider')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: Text(t('Estilo de barra', 'Bar style'),
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                    ),
+                    _chipRow(
+                      options: const [
+                        ('minimal', 'Minimal'),
+                        ('liquid', 'Liquid'),
+                        ('bold', 'Bold'),
+                        ('timeline', 'Timeline'),
+                        ('hidden', 'Hidden'),
+                      ],
+                      value: s.sliderStyle,
+                      onPick: (v) => s.setString('slider_style', v),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Text(t('Thumb', 'Thumb'),
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                    ),
+                    _chipRow(
+                      options: const [
+                        ('circle', 'Círculo'),
+                        ('line', 'Línea'),
+                        ('hidden', 'Oculto'),
+                      ],
+                      value: s.sliderThumb,
+                      onPick: (v) => s.setString('slider_thumb', v),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Text(t('Tiempo', 'Time'),
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                    ),
+                    _chipRow(
+                      options: const [
+                        ('sides', 'Izq-Der'),
+                        ('center', 'Centro'),
+                        ('hidden', 'Oculto'),
+                      ],
+                      value: s.timeDisplay,
+                      onPick: (v) => s.setString('time_display', v),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+              _section(t('Player · Layout', 'Player · Layout')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: Text(t('Cover', 'Cover'),
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                    ),
+                    _chipRow(
+                      options: const [
+                        ('large', 'Grande'),
+                        ('medium', 'Mediano'),
+                        ('rotating', 'Disco'),
+                        ('blur_bg', 'Blur fondo'),
+                      ],
+                      value: s.coverStyle,
+                      onPick: (v) => s.setString('cover_style', v),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Text(t('Artista', 'Artist'),
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                    ),
+                    _chipRow(
+                      options: const [
+                        ('below', 'Debajo'),
+                        ('beside', 'Al lado'),
+                        ('chip', 'Chip'),
+                      ],
+                      value: s.artistStyle,
+                      onPick: (v) => s.setString('artist_style', v),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Text(t('Fondo', 'Background'),
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                    ),
+                    _chipRow(
+                      options: const [
+                        ('blur', 'Blur'),
+                        ('solid', 'Sólido'),
+                        ('gradient', 'Gradiente'),
+                      ],
+                      value: s.playerBackground,
+                      onPick: (v) => s.setString('player_bg', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Karaoke', 'Karaoke'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.karaokeOn,
+                      onChanged: (v) => s.setFlag('play_karaoke', v),
+                    ),
+                  ],
+                ),
+              ),
+              _section(t('Playlists', 'Playlists')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: Text(t('Layout de lista', 'List layout'),
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                    ),
+                    _chipRow(
+                      options: const [
+                        ('compact', 'Compacta'),
+                        ('comfortable', 'Cómoda'),
+                        ('large', 'Letras grandes'),
+                      ],
+                      value: s.playlistListLayout,
+                      onPick: (v) => s.setString('pl_list_layout', v),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Text(t('Orden por defecto', 'Default sort'),
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                    ),
+                    _chipRow(
+                      options: const [
+                        ('manual', 'Manual'),
+                        ('recent', 'Reciente'),
+                        ('az', 'A–Z'),
+                        ('most_played', 'Más oídas'),
+                      ],
+                      value: s.playlistDefaultSort,
+                      onPick: (v) => s.setString('pl_sort', v),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Text(t('Privacidad por defecto', 'Default privacy'),
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                    ),
+                    _chipRow(
+                      options: const [
+                        ('private', 'Privada'),
+                        ('link', 'Solo enlace'),
+                        ('public', 'Pública'),
+                      ],
+                      value: s.playlistDefaultPrivacy,
+                      onPick: (v) => s.setString('pl_privacy', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Numeración', 'Numbers'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.playlistShowNumbers,
+                      onChanged: (v) => s.setFlag('pl_numbers', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Asas de arrastre', 'Drag handles'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.playlistDragHandles,
+                      onChanged: (v) => s.setFlag('pl_drag', v),
+                    ),
+                  ],
+                ),
+              ),
+              _section(t('Inicio · Library · Nav', 'Home · Library · Nav')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: Text(t('Densidad de cards (Home)', 'Home card density'),
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                    ),
+                    _chipRow(
+                      options: const [
+                        ('compact', 'Compacta'),
+                        ('normal', 'Normal'),
+                        ('dense', 'Densa'),
+                      ],
+                      value: s.homeCardDensity,
+                      onPick: (v) => s.setString('home_density', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Library en cuadrícula', 'Library grid'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.libraryGrid,
+                      onChanged: (v) => s.setFlag('lib_grid', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Recientes primero', 'Recents first'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.libraryRecentsFirst,
+                      onChanged: (v) => s.setFlag('lib_recents_first', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Mostrar Radio', 'Show Radio'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.showRadioTab,
+                      onChanged: (v) => s.setFlag('ui_show_radio', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Historial de búsqueda', 'Search history'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.searchHistory,
+                      onChanged: (v) => s.setFlag('ui_search_history', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Header compacto al scroll', 'Compact header on scroll'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.compactHeaderOnScroll,
+                      onChanged: (v) => s.setFlag('ui_compact_header', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Etiquetas del nav', 'Nav labels'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.navLabels,
+                      onChanged: (v) => s.setFlag('nav_labels', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Burbuja Liquid', 'Liquid bubble'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.navBubble,
+                      onChanged: (v) => s.setFlag('nav_bubble', v),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 24),
               Center(
                 child: Text('pokke · 1.0.0',
@@ -300,6 +549,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     }
     return err;
+  }
+
+
+  Widget _chipRow({
+    required List<(String, String)> options,
+    required String value,
+    required ValueChanged<String> onPick,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: options.map((o) {
+          final selected = o.$1 == value;
+          return ChoiceChip(
+            label: Text(o.$2, style: TextStyle(
+              color: selected ? Colors.white : Colors.white70,
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            )),
+            selected: selected,
+            selectedColor: const Color(0xfffc3c44),
+            backgroundColor: Colors.white.withOpacity(0.08),
+            side: BorderSide.none,
+            onSelected: (_) => onPick(o.$1),
+          );
+        }).toList(),
+      ),
+    );
   }
 
   Widget _section(String title) {
