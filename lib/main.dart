@@ -20,6 +20,7 @@ import 'package:pokke/pages/library_page.dart';
 import 'package:pokke/screens/profile_edit_screen.dart';
 import 'package:pokke/screens/admin_screen.dart';
 import 'package:pokke/screens/settings_screen.dart';
+import 'package:pokke/screens/mix_editor_screen.dart';
 import 'package:pokke/screens/playlists_screen.dart';
 import 'package:pokke/screens/wrap_screen.dart';
 
@@ -70,6 +71,7 @@ class PokkeApp extends StatelessWidget {
         '/profile_edit': (context) => const ProfileEditScreen(),
         '/admin': (context) => const AdminScreen(),
         '/settings': (context) => const SettingsScreen(),
+        '/mix': (context) => const MixEditorScreen(),
         '/playlists': (context) => const PlaylistsScreen(),
         '/wrap': (context) => const WrapScreen(),
       },
