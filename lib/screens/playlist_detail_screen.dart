@@ -537,40 +537,54 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                       return ReorderableDelayedDragStartListener(
                         key: ValueKey(s['id'] ?? '$i-$title'),
                         index: i,
-                        child: ListTile(
+                        child: Builder(builder: (context) {
+                          final st = SettingsService.instance;
+                          final layout = st.playlistListLayout;
+                          final coverSize = layout == 'compact' ? 40.0 : layout == 'large' ? 56.0 : 48.0;
+                          final titleSize = layout == 'large' ? 17.0 : layout == 'compact' ? 13.5 : 15.0;
+                          final vPad = layout == 'compact' ? 0.0 : layout == 'large' ? 6.0 : 2.0;
+                          return ListTile(
                           contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              EdgeInsets.symmetric(horizontal: 8, vertical: vPad),
                           leading: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text('${i + 1}',
-                                  style: TextStyle(
-                                      color: Colors.white.withOpacity(0.35),
-                                      fontSize: 13)),
-                              const SizedBox(width: 10),
+                              if (st.playlistShowNumbers)
+                                SizedBox(
+                                  width: 22,
+                                  child: Text('${i + 1}',
+                                      style: TextStyle(
+                                          color: Colors.white.withOpacity(0.35),
+                                          fontSize: 13)),
+                                ),
+                              if (st.playlistShowNumbers) const SizedBox(width: 8),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(6),
                                 child: cover != null
                                     ? Image.network(cover,
-                                        width: 48,
-                                        height: 48,
+                                        width: coverSize,
+                                        height: coverSize,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => _ph(48))
-                                    : _ph(48),
+                                        errorBuilder: (_, __, ___) => _ph(coverSize))
+                                    : _ph(coverSize),
                               ),
                             ],
                           ),
                           title: Text(title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: Colors.white, fontWeight: FontWeight.w600)),
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: titleSize)),
                           subtitle: Text(artist,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   color: Colors.white.withOpacity(0.45), fontSize: 12)),
-                          trailing: const Icon(Icons.drag_handle, color: Colors.white24),
+                          trailing: st.playlistDragHandles
+                              ? const Icon(Icons.drag_handle, color: Colors.white24)
+                              : null,
                           onTap: () async {
                             await PlayerController.instance
                                 .playPlaylist(_songs, startIndex: i);
@@ -579,7 +593,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                             }
                           },
                           onLongPress: () => _songMenu(s),
-                        ),
+                        );
+                        }),
                       );
                     },
                   ),
