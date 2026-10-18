@@ -13,6 +13,7 @@ import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/follow_service.dart';
 import 'package:pokke/services/cast_service.dart';
 import 'package:pokke/screens/playlist_detail_screen.dart';
+import 'package:pokke/screens/mix_editor_screen.dart';
 
 class MusicPlayer extends StatefulWidget {
   MusicPlayer({super.key});
@@ -315,50 +316,13 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
   }
 
   void _showCrossfade() {
-    double minutes = 0;
-    showLiquidSheet(
-      context: context,
-      maxHeightFactor: 0.45,
-      child: StatefulBuilder(
-        builder: (ctx, setModal) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(t('Combinar canciones', 'Blend tracks'),
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text(
-                  t('Minuto de inicio de la mezcla: ${minutes.toStringAsFixed(1)}',
-                      'Blend start minute: ${minutes.toStringAsFixed(1)}'),
-                  style: TextStyle(color: Colors.white.withOpacity(0.7)),
-                ),
-                Slider(
-                  value: minutes,
-                  min: 0,
-                  max: 5,
-                  divisions: 50,
-                  activeColor: const Color(0xfffc3c44),
-                  onChanged: (v) => setModal(() => minutes = v),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xfffc3c44)),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(t(
-                        'Mezcla a los ${minutes.toStringAsFixed(1)} min guardada',
-                        'Blend at ${minutes.toStringAsFixed(1)} min saved',
-                      ))),
-                    );
-                  },
-                  child: Text(t('Listo', 'Done'), style: const TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
-          );
-        },
+    final s = _song;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MixEditorScreen(
+          initialA: s == null ? null : Map<String, dynamic>.from(s),
+        ),
       ),
     );
   }
