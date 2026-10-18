@@ -408,6 +408,13 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                     onPressed: _addFromCatalog,
                     tooltip: t('Añadir', 'Add'),
                   ),
+                  IconButton(
+                    icon: const Icon(Icons.graphic_eq),
+                    tooltip: t('Mezcla', 'Mix'),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/mix');
+                    },
+                  ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
                   background: Stack(
