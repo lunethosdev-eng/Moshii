@@ -242,9 +242,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           SnackBar(
                             content: Text(ok
                                 ? t('Spotify conectado', 'Spotify connected')
-                                : ('${SpotifyService.instance.lastError ?? }'.isEmpty
-                              ? t('No se pudo conectar. Revisa Client ID y redirect pokke://spotify-callback en Spotify Dashboard', 'Could not connect. Check Client ID and pokke://spotify-callback in Spotify Dashboard')
-                              : SpotifyService.instance.lastError!)),
+                                : _spotifyErrorText()),
                           ),
                         );
                         setState(() {});
@@ -290,6 +288,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       },
     );
+  }
+
+
+  String _spotifyErrorText() {
+    final err = SpotifyService.instance.lastError;
+    if (err == null || err.isEmpty) {
+      return t(
+        'No se pudo conectar. Revisa Client ID y redirect pokke://spotify-callback en Spotify Dashboard',
+        'Could not connect. Check Client ID and pokke://spotify-callback in Spotify Dashboard',
+      );
+    }
+    return err;
   }
 
   Widget _section(String title) {
