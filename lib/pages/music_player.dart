@@ -437,14 +437,60 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
   }
 
   Widget _liquidSlider(PlayerController pc, Duration dur, double progress) {
-    return SliderTheme(
+    final s = SettingsService.instance;
+    final style = s.sliderStyle; // minimal | liquid | bold | timeline | hidden
+    final thumb = s.sliderThumb; // circle | line | hidden
+
+    double trackH = 4;
+    double thumbR = 7;
+    Color active = Colors.white;
+    Color inactive = Colors.white24;
+    Color thumbC = Colors.white;
+
+    switch (style) {
+      case 'minimal':
+        trackH = 2.5;
+        thumbR = 5;
+        break;
+      case 'bold':
+        trackH = 8;
+        thumbR = 11;
+        break;
+      case 'liquid':
+        trackH = 5;
+        thumbR = 8;
+        active = Colors.white.withOpacity(0.95);
+        inactive = Colors.white.withOpacity(0.18);
+        break;
+      case 'timeline':
+        trackH = 3.5;
+        thumbR = 6;
+        break;
+      case 'hidden':
+        trackH = 2;
+        thumbR = thumb == 'hidden' ? 0 : 4;
+        active = Colors.white.withOpacity(0.35);
+        inactive = Colors.white.withOpacity(0.08);
+        break;
+    }
+
+    SliderComponentShape thumbShape;
+    if (thumb == 'hidden' || style == 'hidden') {
+      thumbShape = const RoundSliderThumbShape(enabledThumbRadius: 0.01);
+    } else if (thumb == 'line') {
+      thumbShape = const RoundSliderThumbShape(enabledThumbRadius: 2, elevation: 0);
+    } else {
+      thumbShape = RoundSliderThumbShape(enabledThumbRadius: thumbR);
+    }
+
+    Widget slider = SliderTheme(
       data: SliderTheme.of(context).copyWith(
-        trackHeight: 5,
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-        overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-        activeTrackColor: Colors.white,
-        inactiveTrackColor: Colors.white24,
-        thumbColor: Colors.white,
+        trackHeight: trackH,
+        thumbShape: thumbShape,
+        overlayShape: RoundSliderOverlayShape(overlayRadius: thumbR + 8),
+        activeTrackColor: active,
+        inactiveTrackColor: inactive,
+        thumbColor: thumbC,
         overlayColor: Colors.white24,
       ),
       child: Slider(
@@ -452,6 +498,80 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
         onChanged: (v) {
           pc.seek(Duration(milliseconds: (v * dur.inMilliseconds).round()));
         },
+      ),
+    );
+
+    // Liquid: soft glow under track
+    if (style == 'liquid' && s.liquidGlassEnabled) {
+      slider = Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(99),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(0.12),
+                      blurRadius: 12,
+                      spreadRadius: 0.5,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          slider,
+        ],
+      );
+    }
+
+    // Timeline marks every 30s
+    if (style == 'timeline' && dur.inSeconds > 30) {
+      final marks = <Widget>[];
+      final total = dur.inSeconds;
+      for (var sec = 30; sec < total; sec += 30) {
+        final frac = sec / total;
+        marks.add(Positioned(
+          left: frac * (MediaQuery.of(context).size.width - 48),
+          top: 0,
+          bottom: 0,
+          child: Container(width: 1, color: Colors.white24),
+        ));
+      }
+      slider = SizedBox(
+        height: 36,
+        child: Stack(alignment: Alignment.center, children: [...marks, slider]),
+      );
+    }
+
+    return slider;
+  }
+
+  Widget _timeRow(Duration pos, Duration dur) {
+    final mode = SettingsService.instance.timeDisplay;
+    if (mode == 'hidden') return const SizedBox.shrink();
+    final left = _fmt(pos);
+    final right = _fmt(dur);
+    if (mode == 'center') {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Center(
+          child: Text('$left / $right',
+              style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 12)),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(left, style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 12)),
+          Text(right, style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 12)),
+        ],
       ),
     );
   }
@@ -671,13 +791,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 2),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(_fmt(pos), style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5))),
-                              Text(_fmt(dur), style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5))),
-                            ],
-                          ),
+                          child: _timeRow(pos, dur),
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 6),
