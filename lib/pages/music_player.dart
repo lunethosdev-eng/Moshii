@@ -436,6 +436,161 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
     }
   }
 
+
+
+  List<Widget> _playerBackgroundLayers(dynamic cover) {
+    final mode = SettingsService.instance.playerBackground; // blur | solid | gradient
+    if (mode == 'solid') {
+      return [const ColoredBox(color: Color(0xFF0A0A0C))];
+    }
+    final layers = <Widget>[];
+    if (cover != null) {
+      layers.add(Image.network(
+        cover.toString(),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const SizedBox(),
+      ));
+    }
+    if (mode == 'gradient') {
+      layers.add(Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xfffc3c44).withOpacity(0.45),
+              Colors.black.withOpacity(0.85),
+              const Color(0xFF0A0A0C),
+            ],
+          ),
+        ),
+      ));
+    } else {
+      layers.add(Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.black.withOpacity(0.35),
+              Colors.black.withOpacity(0.8),
+              const Color(0xFF0A0A0C),
+            ],
+          ),
+        ),
+      ));
+    }
+    return layers;
+  }
+
+  Widget _buildCoverBlock(dynamic cover) {
+    final s = SettingsService.instance;
+    final style = s.coverStyle; // large | medium | rotating | blur_bg
+    double maxW;
+    switch (style) {
+      case 'medium':
+        maxW = 220;
+        break;
+      case 'rotating':
+      case 'blur_bg':
+        maxW = 260;
+        break;
+      default:
+        maxW = 320;
+    }
+    final radius = style == 'rotating' ? 999.0 : 16.0;
+
+    Widget img = cover != null
+        ? Image.network(
+            cover.toString(),
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+              color: Colors.white12,
+              child: const Icon(Icons.music_note, size: 72, color: Colors.white24),
+            ),
+          )
+        : Container(
+            color: Colors.white12,
+            child: const Icon(Icons.music_note, size: 72, color: Colors.white24),
+          );
+
+    Widget framed = ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: img,
+    );
+
+    if (style == 'rotating') {
+      framed = _RotatingCover(child: framed);
+    }
+
+    return GestureDetector(
+      onLongPressStart: (_) => _openCoverExpand(cover),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxW),
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: Hero(
+              tag: 'player_cover_${cover ?? 'none'}',
+              child: Material(
+                color: Colors.transparent,
+                child: framed,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openCoverExpand(dynamic cover) {
+    if (cover == null) return;
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withOpacity(0.85),
+        pageBuilder: (_, anim, __) {
+          return FadeTransition(
+            opacity: anim,
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              onVerticalDragEnd: (d) {
+                if ((d.primaryVelocity ?? 0) > 200) Navigator.pop(context);
+              },
+              child: Scaffold(
+                backgroundColor: Colors.transparent,
+                body: Center(
+                  child: Hero(
+                    tag: 'player_cover_$cover',
+                    child: InteractiveViewer(
+                      minScale: 0.8,
+                      maxScale: 3,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.network(
+                          cover.toString(),
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+        transitionsBuilder: (_, anim, __, child) {
+          return ScaleTransition(
+            scale: Tween(begin: 0.92, end: 1.0).animate(
+              CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+            ),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
   Widget _liquidSlider(PlayerController pc, Duration dur, double progress) {
     final s = SettingsService.instance;
     final style = s.sliderStyle; // minimal | liquid | bold | timeline | hidden
@@ -584,7 +739,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
     final cover = _song?['cover_url'] ?? _song?['animated_cover_url'] ?? pc.current?['cover_url'];
 
     return AnimatedBuilder(
-      animation: pc,
+      animation: Listenable.merge([pc, SettingsService.instance]),
       builder: (context, _) {
         final pos = pc.position;
         final dur = pc.duration.inMilliseconds > 0 ? pc.duration : const Duration(seconds: 1);
@@ -681,22 +836,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
               body: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (cover != null)
-                    Image.network(cover.toString(), fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox()),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.35),
-                          Colors.black.withOpacity(0.8),
-                          const Color(0xFF0A0A0C),
-                        ],
-                      ),
-                    ),
-                  ),
+                  ..._playerBackgroundLayers(cover),
                   SafeArea(
                     child: Column(
                       children: [
@@ -735,23 +875,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                           ),
                         ),
                         Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 8),
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: cover != null
-                                    ? Image.network(cover.toString(), fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Container(
-                                            color: Colors.white12,
-                                            child: const Icon(Icons.music_note, size: 72, color: Colors.white24)))
-                                    : Container(
-                                        color: Colors.white12,
-                                        child: const Icon(Icons.music_note, size: 72, color: Colors.white24)),
-                              ),
-                            ),
-                          ),
+                          child: _buildCoverBlock(cover),
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
