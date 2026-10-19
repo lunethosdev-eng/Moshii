@@ -6,7 +6,7 @@ import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
 
-/// Editor de mezcla estilo crossfade (A → B) con punto de transición y duración.
+/// Editor profesional de mezcla A → B con timeline, handles y preview.
 class MixEditorScreen extends StatefulWidget {
   final Map<String, dynamic>? initialA;
   final Map<String, dynamic>? initialB;
@@ -22,18 +22,14 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
   Map<String, dynamic>? trackB;
   final AudioPlayer _playerA = AudioPlayer();
   final AudioPlayer _playerB = AudioPlayer();
-  Duration _durA = Duration.zero;
-  Duration _durB = Duration.zero;
+  Duration _durA = const Duration(seconds: 180);
+  Duration _durB = const Duration(seconds: 180);
   Duration _pos = Duration.zero;
   bool _playing = false;
-  /// 0..1 position of transition within the overlap window
-  double _transitionNorm = 0.5;
-  /// Crossfade length in seconds
+  double _blendStartA = 40; // seconds
   double _crossfadeSec = 8;
-  /// Start of blend on track A (seconds from start)
-  double _blendStartA = 20;
+  bool _bStarted = false;
   StreamSubscription? _posSub;
-  Timer? _previewTimer;
 
   String t(String es, String en) =>
       SettingsService.instance.locale == 'en' ? en : es;
@@ -43,12 +39,6 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
     super.initState();
     trackA = widget.initialA;
     trackB = widget.initialB;
-    _wirePlayers();
-    if (trackA != null) _loadDuration(trackA!, true);
-    if (trackB != null) _loadDuration(trackB!, false);
-  }
-
-  void _wirePlayers() {
     _playerA.onDurationChanged.listen((d) {
       if (mounted) setState(() => _durA = d);
     });
@@ -56,12 +46,15 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
       if (mounted) setState(() => _durB = d);
     });
     _posSub = _playerA.onPositionChanged.listen((p) {
-      if (mounted) setState(() => _pos = p);
-      _maybeStartB(p);
+      if (!mounted) return;
+      setState(() => _pos = p);
+      _tickCrossfade(p);
     });
+    if (trackA != null) _prep(trackA!, true);
+    if (trackB != null) _prep(trackB!, false);
   }
 
-  Future<void> _loadDuration(Map<String, dynamic> song, bool isA) async {
+  Future<void> _prep(Map<String, dynamic> song, bool isA) async {
     final url = (song['audio_url'] ?? song['stream_url'] ?? '').toString();
     if (url.isEmpty) return;
     try {
@@ -72,7 +65,8 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
         setState(() {
           if (isA) {
             _durA = d;
-            _blendStartA = (d.inSeconds - _crossfadeSec).clamp(0, d.inSeconds.toDouble());
+            _blendStartA =
+                (d.inSeconds - _crossfadeSec).clamp(5, d.inSeconds.toDouble());
           } else {
             _durB = d;
           }
@@ -81,7 +75,53 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
     } catch (_) {}
   }
 
-  Future<void> _pickTrack(bool isA) async {
+  void _tickCrossfade(Duration posA) {
+    if (!_playing || trackB == null) return;
+    final startMs = (_blendStartA * 1000).round();
+    final fadeMs = (_crossfadeSec * 1000).round().clamp(500, 30000);
+    if (posA.inMilliseconds < startMs) {
+      _playerA.setVolume(1);
+      _playerB.setVolume(0);
+      return;
+    }
+    final elapsed = posA.inMilliseconds - startMs;
+    final tNorm = (elapsed / fadeMs).clamp(0.0, 1.0);
+    _playerA.setVolume(1.0 - tNorm);
+    _playerB.setVolume(tNorm);
+    if (!_bStarted) {
+      _bStarted = true;
+      final url =
+          (trackB!['audio_url'] ?? trackB!['stream_url'] ?? '').toString();
+      if (url.isNotEmpty) _playerB.play(UrlSource(url));
+    }
+  }
+
+  Future<void> _toggle() async {
+    if (trackA == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t('Elige la pista A', 'Pick track A'))),
+      );
+      return;
+    }
+    HapticFeedback.lightImpact();
+    if (_playing) {
+      await _playerA.pause();
+      await _playerB.pause();
+      setState(() => _playing = false);
+      return;
+    }
+    final url = (trackA!['audio_url'] ?? trackA!['stream_url'] ?? '').toString();
+    if (url.isEmpty) return;
+    _bStarted = false;
+    final seekSec = (_blendStartA - 3).clamp(0, 9999.0);
+    await _playerA.setVolume(1);
+    await _playerB.setVolume(0);
+    await _playerA.play(UrlSource(url));
+    await _playerA.seek(Duration(milliseconds: (seekSec * 1000).round()));
+    setState(() => _playing = true);
+  }
+
+  Future<void> _pick(bool isA) async {
     final qCtrl = TextEditingController();
     List<Map<String, dynamic>> results = [];
     await showModalBottomSheet(
@@ -98,7 +138,7 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
               Future<void> search(String q) async {
                 try {
                   if (q.trim().isEmpty) {
-                    final all = await SupabaseService.getSongs(limit: 30);
+                    final all = await SupabaseService.getSongs(limit: 40);
                     setModal(() => results = all);
                     return;
                   }
@@ -107,7 +147,8 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
                       .select()
                       .or('title.ilike.%$q%,artist.ilike.%$q%')
                       .limit(40);
-                  setModal(() => results = List<Map<String, dynamic>>.from(res));
+                  setModal(
+                      () => results = List<Map<String, dynamic>>.from(res));
                 } catch (_) {
                   setModal(() => results = []);
                 }
@@ -115,41 +156,63 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
 
               search('');
               return SizedBox(
-                height: MediaQuery.of(ctx).size.height * 0.7,
+                height: MediaQuery.of(ctx).size.height * 0.72,
                 child: Column(
                   children: [
-                    const SizedBox(height: 12),
-                    Text(t('Elegir canción ${isA ? "A" : "B"}', 'Pick track ${isA ? "A" : "B"}'),
-                        style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w700, fontSize: 17)),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2)),
+                    ),
                     Padding(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(14),
+                      child: Text(
+                        t('Elegir pista ${isA ? "A" : "B"}',
+                            'Pick track ${isA ? "A" : "B"}'),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
                       child: TextField(
                         controller: qCtrl,
                         style: const TextStyle(color: Colors.white),
                         onChanged: search,
                         decoration: InputDecoration(
-                          hintText: t('Buscar…', 'Search…'),
-                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.35)),
-                          prefixIcon: const Icon(Icons.search, color: Colors.white38),
+                          hintText: t('Buscar canción o artista…',
+                              'Search song or artist…'),
+                          hintStyle:
+                              TextStyle(color: Colors.white.withOpacity(0.35)),
+                          prefixIcon:
+                              const Icon(Icons.search, color: Colors.white38),
                           filled: true,
                           fillColor: Colors.white.withOpacity(0.06),
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
                         ),
                       ),
                     ),
+                    const SizedBox(height: 8),
                     Expanded(
                       child: ListView.builder(
                         itemCount: results.length,
                         itemBuilder: (_, i) {
                           final s = results[i];
                           return ListTile(
-                            leading: _cover(s['cover_url']?.toString(), 44),
+                            leading: _cover(s['cover_url']?.toString(), 46),
                             title: Text((s['title'] ?? '').toString(),
                                 style: const TextStyle(color: Colors.white)),
                             subtitle: Text((s['artist'] ?? '').toString(),
-                                style: TextStyle(color: Colors.white.withOpacity(0.5))),
+                                style: TextStyle(
+                                    color: Colors.white.withOpacity(0.45))),
                             onTap: () async {
                               Navigator.pop(ctx);
                               setState(() {
@@ -159,7 +222,7 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
                                   trackB = s;
                                 }
                               });
-                              await _loadDuration(s, isA);
+                              await _prep(s, isA);
                             },
                           );
                         },
@@ -175,62 +238,24 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
     );
   }
 
-  void _maybeStartB(Duration posA) {
-    if (trackB == null || !_playing) return;
-    final startMs = (_blendStartA * 1000).round();
-    if (posA.inMilliseconds >= startMs) {
-      final elapsedInFade = (posA.inMilliseconds - startMs) / 1000.0;
-      final tNorm = (elapsedInFade / _crossfadeSec).clamp(0.0, 1.0);
-      _playerA.setVolume(1.0 - tNorm);
-      _playerB.setVolume(tNorm);
-      // Start B once when we enter the window
-      if (elapsedInFade < 0.15) {
-        final url = (trackB!['audio_url'] ?? trackB!['stream_url'] ?? '').toString();
-        if (url.isNotEmpty) {
-          _playerB.play(UrlSource(url));
-        }
-      }
-    }
-  }
-
-  Future<void> _togglePlay() async {
-    if (trackA == null) return;
-    HapticFeedback.lightImpact();
-    if (_playing) {
-      await _playerA.pause();
-      await _playerB.pause();
-      setState(() => _playing = false);
-      return;
-    }
-    final urlA = (trackA!['audio_url'] ?? trackA!['stream_url'] ?? '').toString();
-    if (urlA.isEmpty) return;
-    // Seek near blend for quick preview
-    final seekTo = Duration(milliseconds: ((_blendStartA - 2).clamp(0, 9999) * 1000).round());
-    await _playerA.play(UrlSource(urlA));
-    await _playerA.seek(seekTo);
-    await _playerA.setVolume(1);
-    await _playerB.setVolume(0);
-    setState(() => _playing = true);
-  }
-
-  Future<void> _saveMix() async {
+  Future<void> _save() async {
     if (trackA == null || trackB == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t('Elige las dos canciones', 'Pick both tracks'))),
+        SnackBar(
+            content: Text(t('Elige las dos pistas', 'Pick both tracks'))),
       );
       return;
     }
     final uid = SupabaseService.currentUser?.id;
     if (uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t('Inicia sesión para guardar', 'Sign in to save'))),
+        SnackBar(
+            content: Text(t('Inicia sesión para guardar', 'Sign in to save'))),
       );
       return;
     }
     try {
-      // Store as a special playlist of 2 songs with mix metadata in description
-      final name =
-          '${trackA!['title']} → ${trackB!['title']}';
+      final name = '${trackA!['title']} → ${trackB!['title']}';
       final pl = await SupabaseService.kokoro.from('playlists').insert({
         'user_id': uid,
         'name': name,
@@ -262,13 +287,16 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
       ]);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(t('Mezcla guardada en Playlists', 'Mix saved to Playlists'))),
+          SnackBar(
+              content: Text(
+                  t('Mezcla guardada en Playlists', 'Mix saved to Playlists'))),
         );
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
       }
     }
   }
@@ -276,17 +304,26 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
   @override
   void dispose() {
     _posSub?.cancel();
-    _previewTimer?.cancel();
     _playerA.dispose();
     _playerB.dispose();
     super.dispose();
+  }
+
+  String _fmt(double sec) {
+    final s = sec.round().clamp(0, 35999);
+    final m = s ~/ 60;
+    final r = s % 60;
+    return '${m.toString().padLeft(2, '0')}:${r.toString().padLeft(2, '0')}';
   }
 
   Widget _cover(String? url, double s) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: url != null && url.isNotEmpty
-          ? Image.network(url, width: s, height: s, fit: BoxFit.cover,
+          ? Image.network(url,
+              width: s,
+              height: s,
+              fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => _ph(s))
           : _ph(s),
     );
@@ -299,205 +336,298 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
         child: const Icon(Icons.music_note, color: Colors.white24, size: 18),
       );
 
-  Widget _trackCard(bool isA) {
+  Widget _trackLane({
+    required bool isA,
+    required Color accent,
+  }) {
     final song = isA ? trackA : trackB;
-    final label = isA ? 'A' : 'B';
-    final time = isA
-        ? _fmt(Duration(seconds: _blendStartA.round()))
-        : '00:00';
-    return Material(
-      color: const Color(0xFF1A1A1E),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => _pickTrack(isA),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              _cover(song?['cover_url']?.toString(), 52),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song?['title']?.toString() ?? t('Toca para elegir', 'Tap to pick'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
-                    ),
-                    Text(
-                      song?['artist']?.toString() ?? '—',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12),
-                    ),
-                  ],
-                ),
+    final dur = isA ? _durA : _durB;
+    return GestureDetector(
+      onTap: () => _pick(isA),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF121216),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accent.withOpacity(0.35)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: accent.withOpacity(0.2),
+                shape: BoxShape.circle,
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(time,
-                    style: const TextStyle(color: Colors.white70, fontFeatures: [FontFeature.tabularFigures()])),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isA ? const Color(0xFF2EE6A6).withOpacity(0.2) : const Color(0xfffc3c44).withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: Text(label,
+              child: Text(isA ? 'A' : 'B',
+                  style: TextStyle(
+                      color: accent, fontWeight: FontWeight.w900, fontSize: 13)),
+            ),
+            const SizedBox(width: 10),
+            _cover(song?['cover_url']?.toString(), 48),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song?['title']?.toString() ??
+                        t('Toca para elegir pista', 'Tap to pick track'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14),
+                  ),
+                  Text(
+                    song?['artist']?.toString() ??
+                        t('Vacío', 'Empty'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: isA ? const Color(0xFF2EE6A6) : const Color(0xfffc3c44),
-                      fontWeight: FontWeight.w800,
-                    )),
+                        color: Colors.white.withOpacity(0.4), fontSize: 12),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            Text(_fmt(dur.inSeconds.toDouble()),
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    fontSize: 12)),
+          ],
         ),
       ),
     );
   }
 
-  String _fmt(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
   @override
   Widget build(BuildContext context) {
-    final maxStart = _durA.inSeconds > 0 ? _durA.inSeconds.toDouble() : 180.0;
+    final maxStart =
+        _durA.inSeconds > 10 ? _durA.inSeconds.toDouble() : 180.0;
+    final blendFrac = (_blendStartA / maxStart).clamp(0.0, 1.0);
+    final xfadeFrac = (_crossfadeSec / maxStart).clamp(0.02, 0.5);
+    final playFrac = _durA.inMilliseconds > 0
+        ? (_pos.inMilliseconds / _durA.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF070709),
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
         title: Text(t('Editor de Mezcla', 'Mix Editor'),
-            style: const TextStyle(fontWeight: FontWeight.w700)),
+            style: const TextStyle(fontWeight: FontWeight.w800)),
         actions: [
+          IconButton(
+            onPressed: _toggle,
+            icon: Icon(_playing ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                color: const Color(0xFF2EE6A6), size: 32),
+          ),
           TextButton(
-            onPressed: _saveMix,
+            onPressed: _save,
             child: Text(t('Guardar', 'Save'),
-                style: const TextStyle(color: Color(0xfffc3c44), fontWeight: FontWeight.w700)),
+                style: const TextStyle(
+                    color: Color(0xfffc3c44), fontWeight: FontWeight.w800)),
           ),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
         children: [
-          _trackCard(true),
-          const SizedBox(height: 10),
-          _trackCard(false),
-          const SizedBox(height: 20),
-          // Waveform / transition visual
+          Text(
+            t(
+              'Elige dos pistas. Arrastra el punto de transición y la duración del crossfade. Preview desde 3s antes del corte.',
+              'Pick two tracks. Drag the transition point and crossfade length. Preview starts 3s before the cut.',
+            ),
+            style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12, height: 1.35),
+          ),
+          const SizedBox(height: 14),
+          _trackLane(isA: true, accent: const Color(0xFF2EE6A6)),
+          _trackLane(isA: false, accent: const Color(0xfffc3c44)),
+          const SizedBox(height: 8),
+          // Timeline canvas
           Container(
-            padding: const EdgeInsets.all(14),
+            height: 140,
             decoration: BoxDecoration(
-              color: const Color(0xFF121214),
+              color: const Color(0xFF101014),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white.withOpacity(0.06)),
             ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.graphic_eq, color: Color(0xFF2EE6A6), size: 18),
-                    const SizedBox(width: 6),
-                    Text(t('Transición', 'Transition'),
-                        style: const TextStyle(
-                            color: Colors.white70, fontWeight: FontWeight.w600, fontSize: 13)),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: _togglePlay,
-                      icon: Icon(_playing ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                          color: const Color(0xFF2EE6A6), size: 36),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 90,
-                  child: CustomPaint(
-                    painter: _WavePainter(
-                      progress: _durA.inMilliseconds > 0
-                          ? _pos.inMilliseconds / _durA.inMilliseconds
-                          : 0,
-                      blendStart: maxStart > 0 ? _blendStartA / maxStart : 0.5,
-                      xfade: maxStart > 0 ? _crossfadeSec / maxStart : 0.1,
-                    ),
-                    size: Size.infinite,
+            child: LayoutBuilder(
+              builder: (ctx, box) {
+                final w = box.maxWidth;
+                return GestureDetector(
+                  onHorizontalDragUpdate: (d) {
+                    final frac = (d.localPosition.dx / w).clamp(0.0, 1.0);
+                    setState(() {
+                      _blendStartA = frac * maxStart;
+                    });
+                  },
+                  child: Stack(
+                    children: [
+                      // Lane A waveform
+                      Positioned(
+                        left: 12,
+                        right: 12,
+                        top: 18,
+                        height: 36,
+                        child: CustomPaint(
+                          painter: _BarsPainter(
+                            color: const Color(0xFF2EE6A6).withOpacity(0.55),
+                            seed: 7,
+                          ),
+                        ),
+                      ),
+                      // Lane B
+                      Positioned(
+                        left: 12,
+                        right: 12,
+                        top: 70,
+                        height: 36,
+                        child: CustomPaint(
+                          painter: _BarsPainter(
+                            color: const Color(0xfffc3c44).withOpacity(0.45),
+                            seed: 13,
+                          ),
+                        ),
+                      ),
+                      // Crossfade region
+                      Positioned(
+                        left: 12 + blendFrac * (w - 24),
+                        width: xfadeFrac * (w - 24),
+                        top: 12,
+                        bottom: 12,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                                color: Colors.white.withOpacity(0.12)),
+                          ),
+                        ),
+                      ),
+                      // Transition handle
+                      Positioned(
+                        left: 12 + blendFrac * (w - 24) - 10,
+                        top: 0,
+                        bottom: 0,
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.drag_indicator,
+                                  size: 14, color: Colors.black87),
+                            ),
+                            Expanded(
+                              child: Container(width: 2, color: Colors.white70),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Playhead
+                      if (_playing)
+                        Positioned(
+                          left: 12 + playFrac * (w - 24),
+                          top: 8,
+                          bottom: 8,
+                          child: Container(
+                            width: 2,
+                            color: const Color(0xFF2EE6A6),
+                          ),
+                        ),
+                      Positioned(
+                        left: 12,
+                        bottom: 6,
+                        child: Text('A',
+                            style: TextStyle(
+                                color: const Color(0xFF2EE6A6).withOpacity(0.8),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800)),
+                      ),
+                      Positioned(
+                        left: 12,
+                        top: 56,
+                        child: Text('B',
+                            style: TextStyle(
+                                color: const Color(0xfffc3c44).withOpacity(0.8),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800)),
+                      ),
+                    ],
                   ),
-                ),
-                if (trackA != null && trackB != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      '${trackA!['title']} → ${trackB!['title']}',
-                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-              ],
+                );
+              },
             ),
           ),
-          const SizedBox(height: 20),
-          Text(t('Inicio de mezcla en A', 'Blend start on A'),
-              style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          const SizedBox(height: 18),
           Row(
             children: [
               Expanded(
-                child: Slider(
-                  value: _blendStartA.clamp(0, maxStart),
-                  min: 0,
-                  max: maxStart,
-                  activeColor: const Color(0xFF2EE6A6),
-                  onChanged: (v) => setState(() => _blendStartA = v),
+                child: Text(
+                  t('Corte en A', 'Cut on A'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
               ),
-              SizedBox(
-                width: 48,
-                child: Text(_fmt(Duration(seconds: _blendStartA.round())),
-                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
-              ),
+              Text(_fmt(_blendStartA),
+                  style: const TextStyle(
+                      color: Color(0xFF2EE6A6),
+                      fontWeight: FontWeight.w800,
+                      fontFeatures: [FontFeature.tabularFigures()])),
             ],
           ),
-          Text(t('Duración del Crossfade', 'Crossfade duration'),
-              style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          Slider(
+            value: _blendStartA.clamp(0, maxStart),
+            min: 0,
+            max: maxStart,
+            activeColor: const Color(0xFF2EE6A6),
+            onChanged: (v) => setState(() => _blendStartA = v),
+          ),
           Row(
             children: [
               Expanded(
-                child: Slider(
-                  value: _crossfadeSec.clamp(2, 20),
-                  min: 2,
-                  max: 20,
-                  divisions: 36,
-                  activeColor: const Color(0xfffc3c44),
-                  onChanged: (v) => setState(() => _crossfadeSec = v),
+                child: Text(
+                  t('Duración crossfade', 'Crossfade length'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
               ),
-              SizedBox(
-                width: 48,
-                child: Text('${_crossfadeSec.toStringAsFixed(1)}s',
-                    style: const TextStyle(color: Color(0xfffc3c44), fontSize: 12)),
-              ),
+              Text('${_crossfadeSec.toStringAsFixed(1)}s',
+                  style: const TextStyle(
+                      color: Color(0xfffc3c44), fontWeight: FontWeight.w800)),
             ],
+          ),
+          Slider(
+            value: _crossfadeSec.clamp(2, 20),
+            min: 2,
+            max: 20,
+            divisions: 36,
+            activeColor: const Color(0xfffc3c44),
+            onChanged: (v) => setState(() => _crossfadeSec = v),
           ),
           const SizedBox(height: 12),
-          Text(
-            t(
-              'Elige dos canciones, marca dónde termina A y cuánto dura el fade hacia B. Guarda como playlist especial.',
-              'Pick two tracks, set where A ends and how long the fade into B lasts. Saves as a special playlist.',
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xfffc3c44),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              onPressed: _save,
+              icon: const Icon(Icons.save_rounded, color: Colors.white),
+              label: Text(t('Guardar mezcla', 'Save mix'),
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w800)),
             ),
-            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12, height: 1.35),
           ),
         ],
       ),
@@ -505,48 +635,30 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
   }
 }
 
-class _WavePainter extends CustomPainter {
-  final double progress;
-  final double blendStart;
-  final double xfade;
-
-  _WavePainter({required this.progress, required this.blendStart, required this.xfade});
+class _BarsPainter extends CustomPainter {
+  final Color color;
+  final int seed;
+  _BarsPainter({required this.color, required this.seed});
 
   @override
   void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    const n = 56;
     final mid = size.height / 2;
-    final paintA = Paint()..color = const Color(0xFF2EE6A6).withOpacity(0.55)..strokeWidth = 2;
-    final paintB = Paint()..color = const Color(0xfffc3c44).withOpacity(0.45)..strokeWidth = 2;
-    final grid = Paint()..color = Colors.white.withOpacity(0.06)..strokeWidth = 1;
-
-    // fake waveform bars
-    final n = 48;
     for (var i = 0; i < n; i++) {
       final x = i * size.width / n;
-      final h = (8 + (i * 17 % 23)).toDouble();
-      final isB = i / n > blendStart;
-      canvas.drawLine(Offset(x, mid - h / 2), Offset(x, mid + h / 2), isB ? paintB : paintA);
+      final h = 6.0 + ((i * seed * 13) % 17);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset(x, mid), width: 2.2, height: h),
+          const Radius.circular(1),
+        ),
+        paint,
+      );
     }
-
-    // transition marker
-    final tx = blendStart * size.width;
-    canvas.drawLine(Offset(tx, 0), Offset(tx, size.height),
-        Paint()..color = Colors.white.withOpacity(0.85)..strokeWidth = 2);
-
-    // playhead
-    final px = progress.clamp(0.0, 1.0) * size.width;
-    canvas.drawLine(Offset(px, 0), Offset(px, size.height),
-        Paint()..color = const Color(0xFF2EE6A6)..strokeWidth = 2);
-
-    // xfade region
-    final xf = xfade.clamp(0.02, 0.5) * size.width;
-    canvas.drawRect(
-      Rect.fromLTWH(tx, 0, xf, size.height),
-      Paint()..color = Colors.white.withOpacity(0.06),
-    );
   }
 
   @override
-  bool shouldRepaint(covariant _WavePainter old) =>
-      old.progress != progress || old.blendStart != blendStart || old.xfade != xfade;
+  bool shouldRepaint(covariant _BarsPainter old) =>
+      old.color != color || old.seed != seed;
 }
