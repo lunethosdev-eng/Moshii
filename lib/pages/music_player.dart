@@ -1087,3 +1087,30 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
   }
 
 }
+
+class _RotatingCover extends StatefulWidget {
+  final Widget child;
+  const _RotatingCover({required this.child});
+  @override
+  State<_RotatingCover> createState() => _RotatingCoverState();
+}
+
+class _RotatingCoverState extends State<_RotatingCover>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: const Duration(seconds: 18))
+      ..repeat();
+  }
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) {
+    return RotationTransition(turns: _c, child: widget.child);
+  }
+}
