@@ -340,13 +340,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       }
                       final ok = await SpotifyService.instance.connect();
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(ok
-                                ? t('Spotify conectado', 'Spotify connected')
-                                : _spotifyErrorText()),
-                          ),
-                        );
+                        if (ok) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(t('Spotify conectado', 'Spotify connected')),
+                            ),
+                          );
+                        } else if (SpotifyService.instance.lastError != null &&
+                            SpotifyService.instance.lastError!.isNotEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(_spotifyErrorText())),
+                          );
+                        }
+                        // cancel silencioso — sin snackbar
                         setState(() {});
                       }
                     },
