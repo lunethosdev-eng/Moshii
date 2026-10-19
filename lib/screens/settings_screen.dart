@@ -287,12 +287,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       final ok = await SpotifyService.instance.connect();
                       if (context.mounted) {
                         if (ok) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(t('Spotify conectado', 'Spotify connected')),
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: const Color(0xFF1A1A1E),
+                            title: Text(t('Importando Spotify…', 'Importing Spotify…'),
+                                style: const TextStyle(color: Colors.white)),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                CircularProgressIndicator(color: Color(0xfffc3c44)),
+                                SizedBox(height: 14),
+                                Text('Liked Songs y playlists…',
+                                    style: TextStyle(color: Colors.white70, fontSize: 13)),
+                              ],
                             ),
-                          );
-                        } else if (SpotifyService.instance.lastError != null &&
+                          ),
+                        );
+                        final n = await SpotifyService.instance.importAllPlaylists();
+                        if (context.mounted) {
+                          Navigator.of(context, rootNavigator: true).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(t('Importadas $n playlists', 'Imported $n playlists')),
+                            backgroundColor: const Color(0xfffc3c44),
+                          ));
+                        }
+                      }} else if (SpotifyService.instance.lastError != null &&
                             SpotifyService.instance.lastError!.isNotEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text(_spotifyErrorText())),
