@@ -7,7 +7,6 @@ import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/spotify_service.dart';
 import 'package:pokke/screens/auth_screen.dart';
 import 'package:pokke/screens/welcome_screen.dart';
-import 'package:pokke/screens/community_styles_screen.dart';
 import 'package:pokke/Bottom%20NavBar/bottom_nav.dart';
 import 'package:pokke/pages/list.dart';
 import 'package:pokke/pages/album_page.dart';
@@ -61,7 +60,6 @@ class PokkeApp extends StatelessWidget {
       routes: {
         '/boot': (context) => const _BootGate(),
         '/welcome': (context) => const WelcomeScreen(),
-        '/community_styles': (context) => const CommunityStylesScreen(),
         '/auth': (context) => const AuthScreen(),
         '/list_test': (context) => ListTest(),
         '/firstpage': (context) => FirstPage(),
