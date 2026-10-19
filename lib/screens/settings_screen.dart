@@ -41,74 +41,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
             children: [
-              // ── EDITORES ──────────────────────────────────────
-              _section(t('Editores visuales', 'Visual editors')),
-              Text(
-                t(
-                  'Cada editor abre una pantalla completa para diseñar esa parte de la app. No son interruptores sueltos.',
-                  'Each editor opens a full screen to design that part of the app. Not loose toggles.',
-                ),
-                style: TextStyle(
-                    color: Colors.white.withOpacity(0.42), fontSize: 12, height: 1.35),
-              ),
-              const SizedBox(height: 12),
-              _editorCard(
-                icon: Icons.play_circle_fill_rounded,
-                color: const Color(0xfffc3c44),
-                title: t('Editor del Player', 'Player Editor'),
-                subtitle: t(
-                  'Orden de bloques, estilo del slider, cover, tiempos y fondo. Vista previa en vivo.',
-                  'Block order, slider style, cover, times and background. Live preview.',
-                ),
-                where: t(
-                  'Se aplica al abrir el full player (mini → full).',
-                  'Applies when you open the full player (mini → full).',
-                ),
-                onTap: () => Navigator.pushNamed(context, '/player_editor'),
-              ),
-              _editorCard(
-                icon: Icons.graphic_eq_rounded,
-                color: const Color(0xFF2EE6A6),
-                title: t('Editor de Mezcla', 'Mix Editor'),
-                subtitle: t(
-                  'Combina dos canciones con timeline, punto de corte y crossfade real.',
-                  'Blend two tracks with timeline, cut point and real crossfade.',
-                ),
-                where: t(
-                  'También desde el menú ⋮ del player → Combinar.',
-                  'Also from player ⋮ menu → Blend.',
-                ),
-                onTap: () => Navigator.pushNamed(context, '/mix'),
-              ),
-              _editorCard(
-                icon: Icons.groups_rounded,
-                color: const Color(0xFFFFB020),
-                title: t('Comunidad de estilos', 'Style community'),
-                subtitle: t(
-                  'Publica tu layout del player o aplica estilos de otros.',
-                  'Publish your player layout or apply styles from others.',
-                ),
-                where: t(
-                  'Galería global · Player / Home / Library / Perfil',
-                  'Global gallery · Player / Home / Library / Profile',
-                ),
-                onTap: () => Navigator.pushNamed(context, '/community_styles'),
-              ),
-              _editorCard(
-                icon: Icons.queue_music_rounded,
-                color: const Color(0xFF6C8CFF),
-                title: t('Playlists · defaults', 'Playlists · defaults'),
-                subtitle: t(
-                  'Densidad de lista, numeración, asas, orden y privacidad por defecto.',
-                  'List density, numbers, handles, sort and default privacy.',
-                ),
-                where: t(
-                  'Afecta todas las playlists nuevas y la vista de detalle.',
-                  'Affects new playlists and the detail view.',
-                ),
-                onTap: () => _openPlaylistDefaults(),
-              ),
-
               // ── IDIOMA ────────────────────────────────────────
               _section(t('Idioma', 'Language')),
               LiquidGlass(
@@ -381,6 +313,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
 
+              // ── EDITORES ──────────────────────────────────────
+              _section(t('Estudio', 'Studio')),
+              Text(
+                t(
+                  'Cada editor abre una pantalla completa para diseñar esa parte de la app. No son interruptores sueltos.',
+                  'Each editor opens a full screen to design that part of the app. Not loose toggles.',
+                ),
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.42), fontSize: 12, height: 1.35),
+              ),
+              const SizedBox(height: 12),
+              _editorCard(
+                icon: Icons.play_circle_fill_rounded,
+                color: const Color(0xFFE8E8EC),
+                title: t('Editor del Player', 'Player Editor'),
+                subtitle: t(
+                  'Orden de bloques, estilo del slider, cover, tiempos y fondo. Vista previa en vivo.',
+                  'Block order, slider style, cover, times and background. Live preview.',
+                ),
+                where: t(
+                  'Se aplica al abrir el full player (mini → full).',
+                  'Applies when you open the full player (mini → full).',
+                ),
+                onTap: () => Navigator.pushNamed(context, '/player_editor'),
+              ),
+              _editorCard(
+                icon: Icons.graphic_eq_rounded,
+                color: const Color(0xFF2EE6A6),
+                title: t('Editor de Mezcla', 'Mix Editor'),
+                subtitle: t(
+                  'Combina dos canciones con timeline, punto de corte y crossfade real.',
+                  'Blend two tracks with timeline, cut point and real crossfade.',
+                ),
+                where: t(
+                  'También desde el menú ⋮ del player → Combinar.',
+                  'Also from player ⋮ menu → Blend.',
+                ),
+                onTap: () => Navigator.pushNamed(context, '/mix'),
+              ),
+              _editorCard(
+                icon: Icons.groups_rounded,
+                color: const Color(0xFFFFB020),
+                title: t('Comunidad de estilos', 'Style community'),
+                subtitle: t(
+                  'Publica tu layout del player o aplica estilos de otros.',
+                  'Publish your player layout or apply styles from others.',
+                ),
+                where: t(
+                  'Galería global · Player / Home / Library / Perfil',
+                  'Global gallery · Player / Home / Library / Profile',
+                ),
+                onTap: () => Navigator.pushNamed(context, '/community_styles'),
+              ),
+              _editorCard(
+                icon: Icons.queue_music_rounded,
+                color: const Color(0xFF6C8CFF),
+                title: t('Playlists · defaults', 'Playlists · defaults'),
+                subtitle: t(
+                  'Densidad de lista, numeración, asas, orden y privacidad por defecto.',
+                  'List density, numbers, handles, sort and default privacy.',
+                ),
+                where: t(
+                  'Afecta todas las playlists nuevas y la vista de detalle.',
+                  'Affects new playlists and the detail view.',
+                ),
+                onTap: () => _openPlaylistDefaults(),
+              ),
+
               // ── ACCOUNT ───────────────────────────────────────
               _section(t('Cuenta', 'Account')),
               LiquidGlass(
@@ -531,7 +531,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withOpacity(0.25)),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
             ),
             child: Row(
               children: [
@@ -539,10 +539,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
+                    color: Colors.white.withOpacity(0.06),
                     borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
                   ),
-                  child: Icon(icon, color: color, size: 26),
+                  child: Icon(icon, color: Colors.white70, size: 24),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -563,9 +564,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 4),
                       Text(where,
                           style: TextStyle(
-                              color: color.withOpacity(0.9),
+                              color: Colors.white.withOpacity(0.35),
                               fontSize: 11,
-                              fontWeight: FontWeight.w600)),
+                              fontWeight: FontWeight.w500)),
                     ],
                   ),
                 ),
