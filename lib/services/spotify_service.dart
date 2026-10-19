@@ -115,7 +115,17 @@ class SpotifyService {
       }
       return await _exchangeCode(code, verifier);
     } catch (e) {
-      lastError = e.toString();
+      final msg = e.toString();
+      // User closed the browser / canceled OAuth — not a hard error.
+      if (msg.contains('CANCELED') ||
+          msg.contains('canceled') ||
+          msg.contains('cancelled') ||
+          msg.contains('User canceled')) {
+        lastError = null;
+        debugPrint('Spotify connect canceled by user');
+        return false;
+      }
+      lastError = msg;
       debugPrint('Spotify connect error: $e');
       return false;
     }
