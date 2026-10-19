@@ -391,9 +391,11 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
             physics: const BouncingScrollPhysics(),
             slivers: [
               SliverAppBar(
-                expandedHeight: 280,
+                expandedHeight: 300,
                 pinned: true,
-                backgroundColor: bg,
+                stretch: true,
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
                 leading: IconButton(
                   icon: const Icon(Icons.arrow_back_ios_new, size: 18),
                   onPressed: () => Navigator.maybePop(context),
@@ -432,14 +434,18 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen>
                           child: const Icon(Icons.queue_music,
                               size: 72, color: Colors.white24),
                         ),
+                      // Soft blend so the cover flows into the song list
                       Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
+                            stops: const [0.0, 0.35, 0.7, 1.0],
                             colors: [
-                              Colors.black.withOpacity(0.15),
-                              bg.withOpacity(0.95),
+                              Colors.black.withOpacity(0.05),
+                              Colors.black.withOpacity(0.25),
+                              bg.withOpacity(0.75),
+                              bg,
                             ],
                           ),
                         ),
