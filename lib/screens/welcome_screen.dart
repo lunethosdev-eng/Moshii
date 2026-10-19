@@ -31,16 +31,16 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         vsync: this, duration: const Duration(milliseconds: 1200))
       ..forward();
     _float = AnimationController(
-        vsync: this, duration: const Duration(seconds: 12))
+        vsync: this, duration: const Duration(seconds: 18))
       ..repeat();
     _loadCovers();
-    _phaseTimer = Timer.periodic(const Duration(milliseconds: 2200), (_) {
+    _phaseTimer = Timer.periodic(const Duration(milliseconds: 2800), (_) {
       if (!mounted) return;
       setState(() => _phase = (_phase + 1).clamp(0, 3));
       if (_phase >= 3) _phaseTimer?.cancel();
     });
     // Safety: always enable CTA after 6s
-    Future.delayed(const Duration(seconds: 6), () {
+    Future.delayed(const Duration(seconds: 12), () {
       if (mounted && _phase < 3) setState(() => _phase = 3);
     });
   }
@@ -92,7 +92,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               }
               return Stack(
                 children: List.generate(
-                  math.min(_covers.length, 12),
+                  math.min(_covers.length, 16),
                   (i) => _floatingCover(i, size),
                 ),
               );
@@ -182,7 +182,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           ),
                           const SizedBox(height: 18),
                           AnimatedOpacity(
-                            duration: const Duration(milliseconds: 500),
+                            duration: const Duration(milliseconds: 600),
                             opacity: _phase >= 2 ? 1 : 0,
                             child: Text(
                               t(
@@ -192,6 +192,22 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.5),
                                 fontSize: 14,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          AnimatedOpacity(
+                            duration: const Duration(milliseconds: 600),
+                            opacity: _phase >= 2 ? 1 : 0,
+                            child: Text(
+                              t(
+                                'Mezcla canciones, sigue artistas y personaliza cada pantalla.',
+                                'Mix tracks, follow artists and customize every screen.',
+                              ),
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.4),
+                                fontSize: 13,
                                 height: 1.35,
                               ),
                             ),
