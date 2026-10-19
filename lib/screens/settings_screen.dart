@@ -81,6 +81,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () => Navigator.pushNamed(context, '/mix'),
               ),
               _editorCard(
+                icon: Icons.groups_rounded,
+                color: const Color(0xFFFFB020),
+                title: t('Comunidad de estilos', 'Style community'),
+                subtitle: t(
+                  'Publica tu layout del player o aplica estilos de otros.',
+                  'Publish your player layout or apply styles from others.',
+                ),
+                where: t(
+                  'Galería global · Player / Home / Library / Perfil',
+                  'Global gallery · Player / Home / Library / Profile',
+                ),
+                onTap: () => Navigator.pushNamed(context, '/community_styles'),
+              ),
+              _editorCard(
                 icon: Icons.queue_music_rounded,
                 color: const Color(0xFF6C8CFF),
                 title: t('Playlists · defaults', 'Playlists · defaults'),
