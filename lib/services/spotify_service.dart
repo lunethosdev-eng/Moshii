@@ -5,16 +5,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pokke/services/supabase_service.dart';
+import 'package:pokke/services/music_api_service.dart';
 
-/// Spotify OAuth (PKCE) + playlist import.
-/// Register redirect URI in Spotify Dashboard:
+/// Spotify OAuth (PKCE) + playlist import into pokke.
+/// Redirect URI in Spotify Dashboard:
 ///   Mobile: pokke://spotify-callback
 ///   Web:    https://lunethosdev-eng.github.io/Moshii/spotify-callback.html
 class SpotifyService {
   static final SpotifyService instance = SpotifyService._();
   SpotifyService._();
 
-  /// Default public client id (replace in Settings if needed).
   static const defaultClientId = 'b4a45e2d1a13437fa4a668334607a0fe';
   static const mobileRedirect = 'pokke://spotify-callback';
   static const webRedirect =
@@ -28,7 +29,10 @@ class SpotifyService {
   DateTime? expiresAt;
   String? lastError;
 
-  bool get isLinked => accessToken != null && accessToken!.isNotEmpty;
+  bool get isLinked =>
+      accessToken != null &&
+      accessToken!.isNotEmpty &&
+      (expiresAt == null || expiresAt!.isAfter(DateTime.now()));
 
   String get redirectUri => kIsWeb ? webRedirect : mobileRedirect;
 
@@ -38,45 +42,45 @@ class SpotifyService {
     accessToken = p.getString('spotify_access');
     refreshToken = p.getString('spotify_refresh');
     final exp = p.getInt('spotify_expires');
-    if (exp != null) expiresAt = DateTime.fromMillisecondsSinceEpoch(exp);
+    if (exp != null) {
+      expiresAt = DateTime.fromMillisecondsSinceEpoch(exp);
+    }
   }
 
-  Future<void> setClientId(String id) async {
-    clientId = id.trim().isEmpty ? defaultClientId : id.trim();
+  Future<void> _persist() async {
     final p = await SharedPreferences.getInstance();
     await p.setString('spotify_client_id', clientId);
-  }
-
-  Future<void> _save() async {
-    final p = await SharedPreferences.getInstance();
-    if (accessToken != null) await p.setString('spotify_access', accessToken!);
-    if (refreshToken != null) await p.setString('spotify_refresh', refreshToken!);
+    if (accessToken != null) {
+      await p.setString('spotify_access', accessToken!);
+    }
+    if (refreshToken != null) {
+      await p.setString('spotify_refresh', refreshToken!);
+    }
     if (expiresAt != null) {
       await p.setInt('spotify_expires', expiresAt!.millisecondsSinceEpoch);
     }
   }
 
   Future<void> unlink() async {
+    final p = await SharedPreferences.getInstance();
     accessToken = null;
     refreshToken = null;
     expiresAt = null;
     lastError = null;
-    final p = await SharedPreferences.getInstance();
     await p.remove('spotify_access');
     await p.remove('spotify_refresh');
     await p.remove('spotify_expires');
   }
 
-  String _randomString(int len) {
+  String _randomString(int length) {
     const chars =
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final r = Random.secure();
-    return List.generate(len, (_) => chars[r.nextInt(chars.length)]).join();
+    final rnd = Random.secure();
+    return List.generate(length, (_) => chars[rnd.nextInt(chars.length)]).join();
   }
 
   String _codeChallenge(String verifier) {
-    final bytes = utf8.encode(verifier);
-    final digest = sha256.convert(bytes);
+    final digest = sha256.convert(utf8.encode(verifier));
     return base64Url.encode(digest.bytes).replaceAll('=', '');
   }
 
@@ -116,7 +120,6 @@ class SpotifyService {
       return await _exchangeCode(code, verifier);
     } catch (e) {
       final msg = e.toString();
-      // User closed the browser / canceled OAuth — not a hard error.
       if (msg.contains('CANCELED') ||
           msg.contains('canceled') ||
           msg.contains('cancelled') ||
@@ -153,17 +156,22 @@ class SpotifyService {
       accessToken = data['access_token'] as String?;
       refreshToken = data['refresh_token'] as String? ?? refreshToken;
       final expiresIn = data['expires_in'] as int? ?? 3600;
-      expiresAt = DateTime.now().add(Duration(seconds: expiresIn));
-      await _save();
-      return accessToken != null;
+      expiresAt = DateTime.now().add(Duration(seconds: expiresIn - 30));
+      await _persist();
+      return true;
     } catch (e) {
       lastError = e.toString();
       return false;
     }
   }
 
-  Future<bool> _refresh() async {
-    if (refreshToken == null) return false;
+  Future<String?> _token() async {
+    if (accessToken != null &&
+        expiresAt != null &&
+        expiresAt!.isAfter(DateTime.now())) {
+      return accessToken;
+    }
+    if (refreshToken == null) return accessToken;
     try {
       final res = await http.post(
         Uri.parse('https://accounts.spotify.com/api/token'),
@@ -174,28 +182,19 @@ class SpotifyService {
           'refresh_token': refreshToken!,
         },
       );
-      if (res.statusCode != 200) return false;
+      if (res.statusCode != 200) return accessToken;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       accessToken = data['access_token'] as String?;
-      final expiresIn = data['expires_in'] as int? ?? 3600;
-      expiresAt = DateTime.now().add(Duration(seconds: expiresIn));
       if (data['refresh_token'] != null) {
-        refreshToken = data['refresh_token'] as String;
+        refreshToken = data['refresh_token'] as String?;
       }
-      await _save();
-      return true;
+      final expiresIn = data['expires_in'] as int? ?? 3600;
+      expiresAt = DateTime.now().add(Duration(seconds: expiresIn - 30));
+      await _persist();
+      return accessToken;
     } catch (_) {
-      return false;
+      return accessToken;
     }
-  }
-
-  Future<String?> _token() async {
-    if (accessToken == null) return null;
-    if (expiresAt != null && DateTime.now().isAfter(expiresAt!)) {
-      final ok = await _refresh();
-      if (!ok) return null;
-    }
-    return accessToken;
   }
 
   Future<List<Map<String, dynamic>>> fetchPlaylists() async {
@@ -211,14 +210,15 @@ class SpotifyService {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final items = data['items'] as List? ?? [];
       for (final it in items) {
-        out.add(Map<String, dynamic>.from(it as Map));
+        if (it is Map<String, dynamic>) out.add(it);
       }
       url = (data['next'] as String?) ?? '';
     }
     return out;
   }
 
-  Future<List<Map<String, dynamic>>> fetchPlaylistTracks(String playlistId) async {
+  Future<List<Map<String, dynamic>>> fetchPlaylistTracks(
+      String playlistId) async {
     final token = await _token();
     if (token == null) return [];
     final out = <Map<String, dynamic>>[];
@@ -254,9 +254,7 @@ class SpotifyService {
     }
     return out;
   }
-}
 
-  /// Liked songs as a synthetic playlist.
   Future<List<Map<String, dynamic>>> fetchLikedTracks() async {
     final token = await _token();
     if (token == null) return [];
@@ -293,8 +291,7 @@ class SpotifyService {
     return out;
   }
 
-  /// Import Spotify playlists (+ Liked Songs) into pokke (Supabase).
-  /// [onStatus] reports human-readable progress for UI.
+  /// Import Spotify playlists (+ Liked Songs) into pokke Supabase.
   Future<int> importAllPlaylists({
     void Function(String message, double? progress)? onStatus,
   }) async {
@@ -305,7 +302,7 @@ class SpotifyService {
     }
     int created = 0;
     final lists = await fetchPlaylists();
-    // Liked songs first
+
     final liked = await fetchLikedTracks();
     if (liked.isNotEmpty) {
       onStatus?.call('Liked Songs…', 0.05);
@@ -318,6 +315,7 @@ class SpotifyService {
       );
       created++;
     }
+
     for (var i = 0; i < lists.length; i++) {
       final pl = lists[i];
       final name = (pl['name'] ?? 'Playlist').toString();
@@ -349,7 +347,6 @@ class SpotifyService {
     required String uid,
     void Function(String message, double? progress)? onStatus,
   }) async {
-    // Create playlist row
     final row = await SupabaseService.kokoro.from('playlists').insert({
       'user_id': uid,
       'name': name,
@@ -369,10 +366,10 @@ class SpotifyService {
         tracks.isEmpty ? null : (i + 1) / tracks.length,
       );
 
-      // Try local catalog first
       Map<String, dynamic>? song;
       try {
-        final found = await SupabaseService.searchSongs('$title $artist', limit: 5);
+        final found =
+            await SupabaseService.searchSongs('$title $artist', limit: 5);
         for (final s in found) {
           final st = (s['title'] ?? s['name'] ?? '').toString().toLowerCase();
           if (st.contains(title.toLowerCase().split(' ').first)) {
@@ -390,7 +387,6 @@ class SpotifyService {
         streamUrl =
             (song['audio_url'] ?? song['stream_url'] ?? song['url'])?.toString();
       } else {
-        // On-demand download from music API
         try {
           final results = await MusicApiService.search(
             '$title $artist',
@@ -403,7 +399,9 @@ class SpotifyService {
           );
           if (results.isNotEmpty) {
             final res = results.first;
-            streamUrl = res['audio_url']?.toString() ?? res['url']?.toString() ?? res['stream_url']?.toString();
+            streamUrl = res['audio_url']?.toString() ??
+                res['url']?.toString() ??
+                res['stream_url']?.toString();
             songId = res['id']?.toString();
           }
         } catch (e) {
@@ -422,8 +420,7 @@ class SpotifyService {
           'position': i,
           'spotify_id': t['spotify_id'],
         });
-      } catch (e) {
-        // Minimal columns fallback
+      } catch (_) {
         try {
           await SupabaseService.kokoro.from('playlist_songs').insert({
             'playlist_id': playlistId,
