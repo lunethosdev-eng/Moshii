@@ -39,6 +39,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       setState(() => _phase = (_phase + 1).clamp(0, 3));
       if (_phase >= 3) _phaseTimer?.cancel();
     });
+    // Safety: always enable CTA after 6s
+    Future.delayed(const Duration(seconds: 6), () {
+      if (mounted && _phase < 3) setState(() => _phase = 3);
+    });
   }
 
   Future<void> _loadCovers() async {
