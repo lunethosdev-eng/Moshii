@@ -59,6 +59,9 @@ class PokkeApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       initialRoute: '/boot',
       routes: {
+        '/boot': (context) => const _BootGate(),
+        '/welcome': (context) => const WelcomeScreen(),
+        '/community_styles': (context) => const CommunityStylesScreen(),
         '/auth': (context) => const AuthScreen(),
         '/list_test': (context) => ListTest(),
         '/firstpage': (context) => FirstPage(),
@@ -111,32 +114,75 @@ class _BootGate extends StatefulWidget {
 }
 
 class _BootGateState extends State<_BootGate> {
+  String? _error;
+
   @override
   void initState() {
     super.initState();
-    _go();
+    // Wait one frame so Navigator is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) => _go());
   }
 
   Future<void> _go() async {
-    final p = await SharedPreferences.getInstance();
-    final seen = p.getBool('welcome_seen') ?? false;
-    if (!mounted) return;
-    if (!seen) {
-      Navigator.pushReplacementNamed(context, '/welcome');
-      return;
+    try {
+      final p = await SharedPreferences.getInstance()
+          .timeout(const Duration(seconds: 3));
+      final seen = p.getBool('welcome_seen') ?? false;
+      if (!mounted) return;
+      if (!seen) {
+        Navigator.pushReplacementNamed(context, '/welcome');
+        return;
+      }
+      Navigator.pushReplacementNamed(
+        context,
+        SupabaseService.isLoggedIn ? '/firstpage' : '/auth',
+      );
+    } catch (e) {
+      debugPrint('BootGate error: $e');
+      if (!mounted) return;
+      // Never stay black: fall through to auth/home
+      try {
+        Navigator.pushReplacementNamed(
+          context,
+          SupabaseService.isLoggedIn ? '/firstpage' : '/auth',
+        );
+      } catch (e2) {
+        setState(() => _error = e2.toString());
+      }
     }
-    Navigator.pushReplacementNamed(
-      context,
-      SupabaseService.isLoggedIn ? '/firstpage' : '/auth',
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF050507),
+    return Scaffold(
+      backgroundColor: const Color(0xFF050507),
       body: Center(
-        child: CircularProgressIndicator(color: Color(0xfffc3c44)),
+        child: _error == null
+            ? const CircularProgressIndicator(color: Color(0xfffc3c44))
+            : Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Error al iniciar',
+                        style: TextStyle(color: Colors.white, fontSize: 16)),
+                    const SizedBox(height: 8),
+                    Text(_error!,
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                        textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xfffc3c44)),
+                      onPressed: () {
+                        Navigator.pushReplacementNamed(context, '/auth');
+                      },
+                      child: const Text('Ir a login',
+                          style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ),
       ),
     );
   }
