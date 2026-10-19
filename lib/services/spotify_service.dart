@@ -255,3 +255,186 @@ class SpotifyService {
     return out;
   }
 }
+
+  /// Liked songs as a synthetic playlist.
+  Future<List<Map<String, dynamic>>> fetchLikedTracks() async {
+    final token = await _token();
+    if (token == null) return [];
+    final out = <Map<String, dynamic>>[];
+    var url = 'https://api.spotify.com/v1/me/tracks?limit=50';
+    while (url.isNotEmpty) {
+      final res = await http.get(Uri.parse(url), headers: {
+        'Authorization': 'Bearer $token',
+      });
+      if (res.statusCode != 200) break;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final items = data['items'] as List? ?? [];
+      for (final it in items) {
+        final track = (it as Map)['track'];
+        if (track == null) continue;
+        final artists = (track['artists'] as List?)
+                ?.map((a) => a['name'])
+                .whereType<String>()
+                .join(', ') ??
+            '';
+        final images = track['album']?['images'] as List?;
+        out.add({
+          'spotify_id': track['id'],
+          'title': track['name'],
+          'artist': artists,
+          'cover_url': images != null && images.isNotEmpty
+              ? images.last['url']
+              : null,
+          'duration_ms': track['duration_ms'],
+        });
+      }
+      url = (data['next'] as String?) ?? '';
+    }
+    return out;
+  }
+
+  /// Import Spotify playlists (+ Liked Songs) into pokke (Supabase).
+  /// [onStatus] reports human-readable progress for UI.
+  Future<int> importAllPlaylists({
+    void Function(String message, double? progress)? onStatus,
+  }) async {
+    final uid = SupabaseService.currentUser?.id;
+    if (uid == null) {
+      lastError = 'not_logged_in';
+      return 0;
+    }
+    int created = 0;
+    final lists = await fetchPlaylists();
+    // Liked songs first
+    final liked = await fetchLikedTracks();
+    if (liked.isNotEmpty) {
+      onStatus?.call('Liked Songs…', 0.05);
+      await _importOnePlaylist(
+        name: 'Liked Songs',
+        cover: liked.first['cover_url']?.toString(),
+        tracks: liked,
+        uid: uid,
+        onStatus: onStatus,
+      );
+      created++;
+    }
+    for (var i = 0; i < lists.length; i++) {
+      final pl = lists[i];
+      final name = (pl['name'] ?? 'Playlist').toString();
+      final id = (pl['id'] ?? '').toString();
+      if (id.isEmpty) continue;
+      onStatus?.call('Importando $name…', (i + 1) / (lists.length + 1));
+      final tracks = await fetchPlaylistTracks(id);
+      final images = pl['images'] as List?;
+      final cover = images != null && images.isNotEmpty
+          ? images.first['url']?.toString()
+          : null;
+      await _importOnePlaylist(
+        name: name,
+        cover: cover,
+        tracks: tracks,
+        uid: uid,
+        onStatus: onStatus,
+      );
+      created++;
+    }
+    onStatus?.call('Listo · $created playlists', 1);
+    return created;
+  }
+
+  Future<void> _importOnePlaylist({
+    required String name,
+    required String? cover,
+    required List<Map<String, dynamic>> tracks,
+    required String uid,
+    void Function(String message, double? progress)? onStatus,
+  }) async {
+    // Create playlist row
+    final row = await SupabaseService.kokoro.from('playlists').insert({
+      'user_id': uid,
+      'name': name,
+      'cover_url': cover,
+      'is_public': false,
+      'source': 'spotify',
+    }).select().single();
+    final playlistId = row['id'];
+
+    for (var i = 0; i < tracks.length; i++) {
+      final t = tracks[i];
+      final title = (t['title'] ?? '').toString();
+      final artist = (t['artist'] ?? '').toString();
+      if (title.isEmpty) continue;
+      onStatus?.call(
+        '$name · $title',
+        tracks.isEmpty ? null : (i + 1) / tracks.length,
+      );
+
+      // Try local catalog first
+      Map<String, dynamic>? song;
+      try {
+        final found = await SupabaseService.searchSongs('$title $artist', limit: 5);
+        for (final s in found) {
+          final st = (s['title'] ?? s['name'] ?? '').toString().toLowerCase();
+          if (st.contains(title.toLowerCase().split(' ').first)) {
+            song = s;
+            break;
+          }
+        }
+        if (found.isNotEmpty && song == null) song = found.first;
+      } catch (_) {}
+
+      String? songId;
+      String? streamUrl;
+      if (song != null) {
+        songId = (song['id'] ?? '').toString();
+        streamUrl =
+            (song['audio_url'] ?? song['stream_url'] ?? song['url'])?.toString();
+      } else {
+        // On-demand download from music API
+        try {
+          final results = await MusicApiService.search(
+            '$title $artist',
+            onProgress: (p) {
+              onStatus?.call(
+                '$title · ${p.status}${p.progress != null ? ' ${(p.progress! * 100).toStringAsFixed(0)}%' : ''}',
+                p.progress,
+              );
+            },
+          );
+          if (results.isNotEmpty) {
+            final res = results.first;
+            streamUrl = res['audio_url']?.toString() ?? res['url']?.toString() ?? res['stream_url']?.toString();
+            songId = res['id']?.toString();
+          }
+        } catch (e) {
+          debugPrint('download miss $title: $e');
+        }
+      }
+
+      try {
+        await SupabaseService.kokoro.from('playlist_songs').insert({
+          'playlist_id': playlistId,
+          'song_id': songId,
+          'title': title,
+          'artist': artist,
+          'cover_url': t['cover_url'],
+          'stream_url': streamUrl,
+          'position': i,
+          'spotify_id': t['spotify_id'],
+        });
+      } catch (e) {
+        // Minimal columns fallback
+        try {
+          await SupabaseService.kokoro.from('playlist_songs').insert({
+            'playlist_id': playlistId,
+            'song_id': songId ?? title,
+            'stream_url': streamUrl,
+            'position': i,
+          });
+        } catch (e2) {
+          debugPrint('playlist_songs insert fail: $e2');
+        }
+      }
+    }
+  }
+}
