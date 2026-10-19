@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pokke/services/supabase_service.dart';
@@ -5,6 +6,8 @@ import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/spotify_service.dart';
 import 'package:pokke/screens/auth_screen.dart';
+import 'package:pokke/screens/welcome_screen.dart';
+import 'package:pokke/screens/community_styles_screen.dart';
 import 'package:pokke/Bottom%20NavBar/bottom_nav.dart';
 import 'package:pokke/pages/list.dart';
 import 'package:pokke/pages/album_page.dart';
@@ -54,7 +57,7 @@ class PokkeApp extends StatelessWidget {
         ),
       ),
       debugShowCheckedModeBanner: false,
-      initialRoute: SupabaseService.isLoggedIn ? '/firstpage' : '/auth',
+      initialRoute: '/boot',
       routes: {
         '/auth': (context) => const AuthScreen(),
         '/list_test': (context) => ListTest(),
@@ -99,3 +102,42 @@ class SlideUpPageRoute<T> extends PageRouteBuilder<T> {
         );
 }
 
+
+
+class _BootGate extends StatefulWidget {
+  const _BootGate();
+  @override
+  State<_BootGate> createState() => _BootGateState();
+}
+
+class _BootGateState extends State<_BootGate> {
+  @override
+  void initState() {
+    super.initState();
+    _go();
+  }
+
+  Future<void> _go() async {
+    final p = await SharedPreferences.getInstance();
+    final seen = p.getBool('welcome_seen') ?? false;
+    if (!mounted) return;
+    if (!seen) {
+      Navigator.pushReplacementNamed(context, '/welcome');
+      return;
+    }
+    Navigator.pushReplacementNamed(
+      context,
+      SupabaseService.isLoggedIn ? '/firstpage' : '/auth',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFF050507),
+      body: Center(
+        child: CircularProgressIndicator(color: Color(0xfffc3c44)),
+      ),
+    );
+  }
+}
