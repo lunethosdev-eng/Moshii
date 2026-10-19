@@ -591,6 +591,188 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
     );
   }
 
+
+  List<Widget> _blockWidgets(
+    String block,
+    dynamic cover,
+    String title,
+    String artist,
+    PlayerController pc,
+    Duration dur,
+    double progress,
+    Duration pos,
+  ) {
+    switch (block) {
+      case 'cover':
+        return [
+          SizedBox(height: 8),
+          _buildCoverBlock(cover),
+          SizedBox(height: 8),
+        ];
+      case 'title':
+        return [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white)),
+                      const SizedBox(height: 3),
+                      Text(artist,
+                          style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.white.withOpacity(0.65))),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => setState(() => _liked = !_liked),
+                  icon: Icon(_liked ? Icons.favorite : Icons.favorite_border,
+                      color: _liked
+                          ? const Color(0xfffc3c44)
+                          : Colors.white70),
+                ),
+              ],
+            ),
+          ),
+        ];
+      case 'slider':
+        return [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: _liquidSlider(pc, dur, progress),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 2),
+            child: _timeRow(pos, dur),
+          ),
+        ];
+      case 'controls':
+        return [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  iconSize: 36,
+                  onPressed: () => pc.playPreviousInQueue(),
+                  icon: const Icon(Icons.skip_previous_rounded,
+                      color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => pc.toggle(),
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      pc.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      size: 40,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                IconButton(
+                  iconSize: 36,
+                  onPressed: () => pc.playNextInQueue(),
+                  icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
+                ),
+              ],
+            ),
+          ),
+        ];
+      case 'artist':
+        return [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+            child: LiquidGlass(
+              blur: 16,
+              opacity: 0.08,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundColor: Colors.white12,
+                      backgroundImage:
+                          cover != null ? NetworkImage(cover.toString()) : null,
+                      child: cover == null
+                          ? const Icon(Icons.person, color: Colors.white38)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(artist,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600)),
+                          Text(t('Artista', 'Artist'),
+                              style: TextStyle(
+                                  color: Colors.white.withOpacity(0.45),
+                                  fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        final name = artist;
+                        final img = cover?.toString();
+                        final v =
+                            await FollowService.toggle(name, imageUrl: img);
+                        if (mounted) setState(() => _following = v);
+                      },
+                      style: TextButton.styleFrom(
+                        backgroundColor:
+                            _following ? Colors.white12 : const Color(0xfffc3c44),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 8),
+                      ),
+                      child: Text(_following
+                          ? t('Siguiendo', 'Following')
+                          : t('Seguir', 'Follow')),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ];
+      case 'lyrics':
+        return [
+          TextButton.icon(
+            onPressed: () => setState(() => _lyricsMode = true),
+            icon: const Icon(Icons.lyrics_outlined, color: Colors.white70),
+            label: Text(t('Ver letras', 'View lyrics'),
+                style: const TextStyle(color: Colors.white70)),
+          ),
+        ];
+      default:
+        return const [];
+    }
+  }
+
   Widget _liquidSlider(PlayerController pc, Duration dur, double progress) {
     final s = SettingsService.instance;
     final style = s.sliderStyle; // minimal | liquid | bold | timeline | hidden
@@ -875,72 +1057,18 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                           ),
                         ),
                         Expanded(
-                          child: _buildCoverBlock(cover),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(28, 8, 28, 0),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
-                                    const SizedBox(height: 3),
-                                    Text(artist, style: TextStyle(fontSize: 15, color: Colors.white.withOpacity(0.65))),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () => setState(() => _liked = !_liked),
-                                icon: Icon(_liked ? Icons.favorite : Icons.favorite_border,
-                                    color: _liked ? const Color(0xfffc3c44) : Colors.white70),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                          child: LiquidGlass(
-                            blur: 14,
-                            opacity: 0.07,
-                            borderRadius: BorderRadius.circular(24),
-                            borderWidth: 0.5,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
-                              child: _liquidSlider(pc, dur, progress),
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Column(
+                              children: [
+                                for (final block in SettingsService.instance.playerLayout)
+                                  ..._blockWidgets(block, cover, title, artist, pc, dur, progress, pos),
+                              ],
                             ),
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 2),
-                          child: _timeRow(pos, dur),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              IconButton(iconSize: 38, onPressed: _prev,
-                                  icon: const Icon(Icons.skip_previous_rounded, color: Colors.white)),
-                              const SizedBox(width: 18),
-                              GestureDetector(
-                                onTap: pc.toggle,
-                                child: Container(
-                                  width: 70, height: 70,
-                                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                                  child: Icon(pc.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                                      size: 42, color: Colors.black),
-                                ),
-                              ),
-                              const SizedBox(width: 18),
-                              IconButton(iconSize: 38, onPressed: _next,
-                                  icon: const Icon(Icons.skip_next_rounded, color: Colors.white)),
-                            ],
-                          ),
-                        ),
-                        Padding(
+Padding(
                           padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
                           child: LiquidGlass(
                             blur: 16,
