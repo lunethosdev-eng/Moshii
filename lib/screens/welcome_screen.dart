@@ -34,7 +34,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         vsync: this, duration: const Duration(seconds: 18))
       ..repeat();
     _loadCovers();
-    _phaseTimer = Timer.periodic(const Duration(milliseconds: 2800), (_) {
+    _phaseTimer = Timer.periodic(const Duration(milliseconds: 3200), (_) {
       if (!mounted) return;
       setState(() => _phase = (_phase + 1).clamp(0, 3));
       if (_phase >= 3) _phaseTimer?.cancel();
@@ -170,8 +170,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             opacity: _phase >= 1 ? 1 : 0,
                             child: Text(
                               t(
-                                'Tu música, tu estilo. Escucha, mezcla y personaliza cada detalle.',
-                                'Your music, your style. Listen, mix and personalize every detail.',
+                                'Escucha · Mezcla · Personaliza. Todo en un solo lugar.',
+                                'Listen · Mix · Personalize. All in one place.',
                               ),
                               style: TextStyle(
                                 color: Colors.white.withOpacity(0.72),
