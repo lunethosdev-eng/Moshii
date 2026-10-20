@@ -8,6 +8,7 @@ import 'package:pokke/services/player_controller.dart';
 import 'package:pokke/services/lyrics_service.dart';
 import 'package:pokke/services/download_service.dart';
 import 'package:pokke/services/settings_service.dart';
+import 'package:pokke/services/artist_image_service.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/follow_service.dart';
@@ -25,6 +26,9 @@ class MusicPlayer extends StatefulWidget {
 class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin {
   bool _lyricsMode = false;
   bool _liked = false;
+  bool _shuffleOn = false;
+  int _repeatMode = 0; // 0 off, 1 all, 2 one
+  String? _artistImageUrl;
   bool _following = false;
   Map<String, dynamic>? _song;
   String? _lyrics;
@@ -76,6 +80,8 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
       FollowService.isFollowing(artistName).then((v) {
         if (mounted) setState(() => _following = v);
       });
+      _loadArtistImage(artistName);
+      _loadArtistImage(artistName);
     }
   }
 
@@ -255,6 +261,11 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
     }
   }
 
+  Future<void> _loadArtistImage(String artist) async {
+    final url = await ArtistImageService.imageFor(artist);
+    if (mounted) setState(() => _artistImageUrl = url);
+  }
+
   void _showMoreMenu() {
     showLiquidSheet(
       context: context,
@@ -298,6 +309,14 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
               onTap: () {
                 Navigator.pop(context);
                 _showCrossfade();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.cast, color: Colors.white70),
+              title: Text(t('Transmitir', 'Cast'), style: const TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                _cast();
               },
             ),
             ListTile(
@@ -396,6 +415,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
       FollowService.isFollowing(artistName).then((v) {
         if (mounted) setState(() => _following = v);
       });
+      _loadArtistImage(artistName);
     }
   }
 
@@ -1079,7 +1099,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                                   ),
                                 ),
                                 IconButton(
-                                  onPressed: _openLiquidShare,
+                                  onPressed: _showMoreMenu,
                                   icon: const Icon(Icons.more_vert,
                                       color: Colors.white70),
                                 ),
@@ -1177,19 +1197,21 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                               children: [
                                 SliderTheme(
                                   data: SliderTheme.of(context).copyWith(
-                                    trackHeight: 3,
+                                    trackHeight: 4,
                                     thumbShape: const RoundSliderThumbShape(
-                                        enabledThumbRadius: 6),
+                                        enabledThumbRadius: 7),
                                     overlayShape:
                                         const RoundSliderOverlayShape(
-                                            overlayRadius: 14),
+                                            overlayRadius: 16),
                                     activeTrackColor: Colors.white,
                                     inactiveTrackColor:
-                                        Colors.white.withOpacity(0.2),
+                                        Colors.white.withOpacity(0.18),
                                     thumbColor: Colors.white,
+                                    overlayColor: WidgetStateProperty.all(
+                                        Colors.white.withOpacity(0.12)),
                                   ),
                                   child: Slider(
-                                    value: progress,
+                                    value: progress.clamp(0.0, 1.0),
                                     onChanged: (v) {
                                       final d = Duration(
                                           milliseconds:
@@ -1235,9 +1257,14 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
                                 IconButton(
-                                  onPressed: () {},
-                                  icon: const Icon(Icons.shuffle_rounded,
-                                      color: Colors.white54),
+                                  onPressed: () {
+                                    setState(() => _shuffleOn = !_shuffleOn);
+                                    PlayerController.instance.shuffleMode = _shuffleOn;
+                                  },
+                                  icon: Icon(Icons.shuffle_rounded,
+                                      color: _shuffleOn
+                                          ? const Color(0xfffc3c44)
+                                          : Colors.white54),
                                 ),
                                 IconButton(
                                   iconSize: 40,
@@ -1271,9 +1298,19 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                                       color: Colors.white),
                                 ),
                                 IconButton(
-                                  onPressed: () {},
-                                  icon: const Icon(Icons.repeat_rounded,
-                                      color: Colors.white54),
+                                  onPressed: () {
+                                    setState(() {
+                                      _repeatMode = (_repeatMode + 1) % 3;
+                                    });
+                                  },
+                                  icon: Icon(
+                                    _repeatMode == 2
+                                        ? Icons.repeat_one_rounded
+                                        : Icons.repeat_rounded,
+                                    color: _repeatMode == 0
+                                        ? Colors.white54
+                                        : const Color(0xfffc3c44),
+                                  ),
                                 ),
                               ],
                             ),
@@ -1286,35 +1323,60 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                                 GestureDetector(
                                   onTap: () =>
                                       setState(() => _lyricsMode = true),
-                                  child: Container(
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 320),
+                                    curve: Curves.easeOutCubic,
                                     width: double.infinity,
                                     padding: const EdgeInsets.fromLTRB(
                                         16, 14, 16, 14),
                                     decoration: BoxDecoration(
                                       color: Colors.white.withOpacity(0.08),
                                       borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color: Colors.white.withOpacity(0.06)),
                                     ),
-                                    child: Row(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          t('Letras', 'Lyrics'),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 15,
-                                          ),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              t('Letras', 'Lyrics'),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            Icon(Icons.lyrics_outlined,
+                                                color: Colors.white
+                                                    .withOpacity(0.5)),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              t('Mostrar', 'Show'),
+                                              style: TextStyle(
+                                                color: Colors.white
+                                                    .withOpacity(0.55),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        const Spacer(),
-                                        Icon(Icons.lyrics_outlined,
-                                            color: Colors.white
-                                                .withOpacity(0.5)),
-                                        const SizedBox(width: 6),
+                                        const SizedBox(height: 10),
                                         Text(
-                                          t('Mostrar', 'Show'),
+                                          (_lyricsPreview() ??
+                                              t(
+                                                'Toca para ver letras a pantalla completa',
+                                                'Tap for full-screen lyrics',
+                                              )),
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            color: Colors.white
-                                                .withOpacity(0.55),
-                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white.withOpacity(0.55),
+                                            height: 1.35,
+                                            fontSize: 13,
                                           ),
                                         ),
                                       ],
@@ -1334,10 +1396,13 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                                       CircleAvatar(
                                         radius: 22,
                                         backgroundColor: Colors.white12,
-                                        backgroundImage: cover != null
-                                            ? NetworkImage(cover.toString())
-                                            : null,
-                                        child: cover == null
+                                        backgroundImage: _artistImageUrl != null
+                                            ? NetworkImage(_artistImageUrl!)
+                                            : (cover != null
+                                                ? NetworkImage(cover.toString())
+                                                : null),
+                                        child: (_artistImageUrl == null &&
+                                                cover == null)
                                             ? const Icon(Icons.person,
                                                 color: Colors.white38)
                                             : null,
@@ -1404,6 +1469,23 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
         );
       },
     );
+  }
+
+  String? _lyricsPreview() {
+    try {
+      final raw = (_lyrics ?? _song?['lyrics'] ?? _song?['lyrics_text'] ?? '').toString();
+      if (raw.trim().isEmpty) return null;
+      final lines = raw
+          .split(RegExp(r'\r?\n'))
+          .map((e) => e.replaceAll(RegExp(r'\[\d+:\d+.*?\]'), '').trim())
+          .where((e) => e.isNotEmpty)
+          .take(3)
+          .toList();
+      if (lines.isEmpty) return null;
+      return lines.join('\n');
+    } catch (_) {
+      return null;
+    }
   }
 
   void _toggleLike() {
