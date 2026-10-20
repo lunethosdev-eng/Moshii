@@ -440,8 +440,8 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
         children: [
           Text(
             t(
-              'Elige dos pistas. Arrastra el punto de transición y la duración del crossfade. Preview desde 3s antes del corte.',
-              'Pick two tracks. Drag the transition point and crossfade length. Preview starts 3s before the cut.',
+              'Elige dos pistas reales. En la timeline: arrastra el bloque A/B (ondas) para mover el punto de corte. El handle blanco también mueve la transición. Preview desde 3s antes del corte.',
+              'Pick two real tracks. On the timeline: drag block A/B (waves) to move the cut point. The white handle also moves the transition.',
             ),
             style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12, height: 1.35),
           ),
