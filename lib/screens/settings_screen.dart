@@ -12,6 +12,14 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    SpotifyService.instance.load().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
   String t(String es, String en) =>
       SettingsService.instance.locale == 'en' ? en : es;
 
@@ -264,21 +272,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: const TextStyle(color: Colors.white)),
                   subtitle: Text(
                     SpotifyService.instance.isLinked
-                        ? t('Conectado', 'Connected')
+                        ? (SpotifyService.instance.displayName != null
+                            ? '${t('Conectado', 'Connected')} · ${SpotifyService.instance.displayName}'
+                            : t('Conectado · toca Importar', 'Connected · tap Import'))
                         : t('Importar playlists', 'Import playlists'),
                     style: TextStyle(
-                        color: Colors.white.withOpacity(0.45), fontSize: 12),
+                        color: SpotifyService.instance.isLinked
+                            ? const Color(0xFF1DB954)
+                            : Colors.white.withOpacity(0.45),
+                        fontSize: 12),
                   ),
                   trailing: TextButton(
                     onPressed: () async {
                       await SpotifyService.instance.load();
                       if (SpotifyService.instance.isLinked) {
-                        await SpotifyService.instance.unlink();
+                        // Already linked → import playlists
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: const Color(0xFF1A1A1E),
+                            title: Text(
+                              t('Importando Spotify…', 'Importing Spotify…'),
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                CircularProgressIndicator(
+                                    color: Color(0xFF1DB954)),
+                                SizedBox(height: 14),
+                                Text(
+                                  'Liked Songs y playlists…',
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                        final n =
+                            await SpotifyService.instance.importAllPlaylists();
                         if (context.mounted) {
+                          Navigator.of(context, rootNavigator: true).pop();
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(t('Spotify desconectado',
-                                  'Spotify disconnected')),
+                              content: Text(t('Importadas $n playlists',
+                                  'Imported $n playlists')),
+                              backgroundColor: const Color(0xFF1DB954),
                             ),
                           );
                           setState(() {});
@@ -334,7 +375,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                     child: Text(
                       SpotifyService.instance.isLinked
-                          ? t('Salir', 'Unlink')
+                          ? t('Importar', 'Import')
                           : t('Conectar', 'Connect'),
                       style: const TextStyle(
                           color: Color(0xFF1DB954),
@@ -355,20 +396,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     color: Colors.white.withOpacity(0.42), fontSize: 12, height: 1.35),
               ),
               const SizedBox(height: 12),
-              _editorCard(
-                icon: Icons.play_circle_fill_rounded,
-                color: const Color(0xFFE8E8EC),
-                title: t('Editor del Player', 'Player Editor'),
-                subtitle: t(
-                  'Orden de bloques, estilo del slider, cover, tiempos y fondo. Vista previa en vivo.',
-                  'Block order, slider style, cover, times and background. Live preview.',
-                ),
-                where: t(
-                  'Se aplica al abrir el full player (mini → full).',
-                  'Applies when you open the full player (mini → full).',
-                ),
-                onTap: () => Navigator.pushNamed(context, '/player_editor'),
-              ),
               _editorCard(
                 icon: Icons.graphic_eq_rounded,
                 color: const Color(0xFF2EE6A6),
