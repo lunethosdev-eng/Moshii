@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pokke/services/audio_cache_service.dart';
 import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/supabase_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PlayerController extends ChangeNotifier {
   static final PlayerController instance = PlayerController._();
@@ -12,6 +14,9 @@ class PlayerController extends ChangeNotifier {
   PlayerController._() {
     _wire(_playerA, false);
     _wire(_playerB, true);
+    // Prefer media player mode so Android can surface media controls
+    unawaited(_playerA.setPlayerMode(PlayerMode.mediaPlayer));
+    unawaited(_playerB.setPlayerMode(PlayerMode.mediaPlayer));
   }
 
   void _wire(AudioPlayer p, bool isB) {
@@ -219,8 +224,19 @@ class PlayerController extends ChangeNotifier {
       isPlaying = true;
       _pausedForDj = false;
       _nextReady = false;
+      // If queue empty (tap from Home), build a queue around this song
+      if (queue.isEmpty) {
+        queue = [song];
+        queueIndex = 0;
+        unawaited(_expandQueueAround(song));
+      } else {
+        final key = _songKey(song);
+        final idx = queue.indexWhere((s) => _songKey(s) == key);
+        if (idx >= 0) queueIndex = idx;
+      }
       notifyListeners();
       unawaited(_recordPlay(song));
+      unawaited(_persistSession());
       // Preload next ASAP
       unawaited(Future.delayed(const Duration(milliseconds: 400), _preloadNext));
     } catch (e) {
@@ -321,6 +337,48 @@ class PlayerController extends ChangeNotifier {
     } catch (e) {
       debugPrint('crossfade: $e');
       await playSong(song, forceRestart: true);
+    }
+  }
+
+  Future<void> _expandQueueAround(Map<String, dynamic> song) async {
+    try {
+      final more = await SupabaseService.getSongs(limit: 40);
+      final key = _songKey(song);
+      final rest = more.where((s) => _songKey(s) != key).toList();
+      if (rest.isEmpty) return;
+      queue = [song, ...rest];
+      queueIndex = 0;
+      notifyListeners();
+      unawaited(_preloadNext());
+    } catch (e) {
+      debugPrint('expandQueue: $e');
+    }
+  }
+
+  Future<void> _persistSession() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final s = currentSong;
+      if (s == null) return;
+      await p.setString('session_song_json', jsonEncode(s));
+      await p.setInt('session_queue_index', queueIndex);
+    } catch (_) {}
+  }
+
+  Future<void> restoreSession() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final raw = p.getString('session_song_json');
+      if (raw == null || raw.isEmpty) return;
+      final map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      currentSong = map;
+      queue = [map];
+      queueIndex = 0;
+      isPlaying = false;
+      notifyListeners();
+      unawaited(_expandQueueAround(map));
+    } catch (e) {
+      debugPrint('restoreSession: $e');
     }
   }
 }
