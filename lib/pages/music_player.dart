@@ -1009,144 +1009,427 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
         return Opacity(
           opacity: fade,
           child: Transform.translate(
-          offset: Offset(0, _dragDy),
-          child: GestureDetector(
-            onVerticalDragUpdate: _onVerticalDragUpdate,
-            onVerticalDragEnd: _onVerticalDragEnd,
-            child: Scaffold(
-              backgroundColor: const Color(0xFF0A0A0C),
-              body: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ..._playerBackgroundLayers(cover),
-                  SafeArea(
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 6),
-                        // Blue handle area — drag down to dismiss
-                        GestureDetector(
-                          onVerticalDragUpdate: _onVerticalDragUpdate,
-                          onVerticalDragEnd: _onVerticalDragEnd,
-                          behavior: HitTestBehavior.opaque,
-                          child: Container(
-                            width: 40, height: 20,
-                            alignment: Alignment.center,
-                            child: Container(
-                              width: 36, height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.white38,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                          ),
+            offset: Offset(0, _dragDy),
+            child: GestureDetector(
+              onVerticalDragUpdate: _onVerticalDragUpdate,
+              onVerticalDragEnd: _onVerticalDragEnd,
+              child: Scaffold(
+                backgroundColor: Colors.black,
+                body: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Soft cover blur background
+                    if (cover != null)
+                      Image.network(
+                        cover.toString(),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox(),
+                      ),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.55),
+                            Colors.black.withOpacity(0.92),
+                            Colors.black,
+                          ],
                         ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
-                          child: Row(
-                            children: [
-                              // White chevron — also dismiss
-                              IconButton(
-                                onPressed: () => Navigator.maybePop(context),
-                                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 32),
-                              ),
-                              const Spacer(),
-                              IconButton(onPressed: _share, icon: const Icon(Icons.ios_share_rounded, color: Colors.white70)),
-                              IconButton(onPressed: _cast, icon: const Icon(Icons.cast, color: Colors.white70)),
-                              IconButton(onPressed: _showMoreMenu, icon: const Icon(Icons.more_horiz, color: Colors.white70)),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            physics: const BouncingScrollPhysics(),
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Column(
+                      ),
+                    ),
+                    SafeArea(
+                      child: Column(
+                        children: [
+                          // Top bar
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(4, 2, 4, 0),
+                            child: Row(
                               children: [
-                                for (final block in SettingsService.instance.playerLayout)
-                                  ..._blockWidgets(block, cover, title, artist, pc, dur, progress, pos),
+                                IconButton(
+                                  onPressed: () => Navigator.maybePop(context),
+                                  icon: const Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      color: Colors.white,
+                                      size: 32),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        t('REPRODUCIENDO', 'NOW PLAYING'),
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.55),
+                                          fontSize: 11,
+                                          letterSpacing: 1.2,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      Text(
+                                        title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: _openLiquidShare,
+                                  icon: const Icon(Icons.more_vert,
+                                      color: Colors.white70),
+                                ),
                               ],
                             ),
                           ),
-                        ),
-Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 4, 24, 0),
-                          child: LiquidGlass(
-                            blur: 16,
-                            opacity: 0.08,
-                            borderRadius: BorderRadius.circular(16),
+                          const SizedBox(height: 8),
+                          // Cover
+                          Expanded(
+                            flex: 5,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 22,
-                                    backgroundColor: Colors.white12,
-                                    backgroundImage: cover != null ? NetworkImage(cover.toString()) : null,
-                                    child: cover == null ? const Icon(Icons.person, color: Colors.white38) : null,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 28),
+                              child: Center(
+                                child: AspectRatio(
+                                  aspectRatio: 1,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: cover != null
+                                        ? Image.network(
+                                            cover.toString(),
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                Container(
+                                              color: Colors.white10,
+                                              child: const Icon(
+                                                  Icons.music_note,
+                                                  color: Colors.white24,
+                                                  size: 64),
+                                            ),
+                                          )
+                                        : Container(
+                                            color: Colors.white10,
+                                            child: const Icon(Icons.music_note,
+                                                color: Colors.white24,
+                                                size: 64),
+                                          ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(artist, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                                        Text(t('Artista', 'Artist'),
-                                            style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
-                                      ],
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () async {
-                                      final name = artist;
-                                      final img = cover?.toString();
-                                      final v = await FollowService.toggle(name, imageUrl: img);
-                                      if (mounted) setState(() => _following = v);
-                                    },
-                                    style: TextButton.styleFrom(
-                                      backgroundColor: _following ? Colors.white12 : const Color(0xfffc3c44),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                                    ),
-                                    child: Text(_following ? t('Siguiendo', 'Following') : t('Seguir', 'Follow'),
-                                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(28, 14, 28, 16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              IconButton(
-                                onPressed: () => setState(() => _lyricsMode = true),
-                                icon: const Icon(Icons.lyrics_outlined, color: Colors.white70, size: 26),
-                              ),
-                              IconButton(
-                                onPressed: _cast,
-                                icon: const Icon(Icons.cast_connected, color: Colors.white70, size: 26),
-                              ),
-                              IconButton(
-                                onPressed: _showQueue,
-                                icon: const Icon(Icons.queue_music_rounded, color: Colors.white70, size: 26),
-                              ),
-                            ],
+                          // Title + artist + like
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        artist,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color:
+                                              Colors.white.withOpacity(0.6),
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: _toggleLike,
+                                  icon: Icon(
+                                    _liked
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: _liked
+                                        ? const Color(0xfffc3c44)
+                                        : Colors.white70,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                          // Progress
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                            child: Column(
+                              children: [
+                                SliderTheme(
+                                  data: SliderTheme.of(context).copyWith(
+                                    trackHeight: 3,
+                                    thumbShape: const RoundSliderThumbShape(
+                                        enabledThumbRadius: 6),
+                                    overlayShape:
+                                        const RoundSliderOverlayShape(
+                                            overlayRadius: 14),
+                                    activeTrackColor: Colors.white,
+                                    inactiveTrackColor:
+                                        Colors.white.withOpacity(0.2),
+                                    thumbColor: Colors.white,
+                                  ),
+                                  child: Slider(
+                                    value: progress,
+                                    onChanged: (v) {
+                                      final d = Duration(
+                                          milliseconds:
+                                              (v * dur.inMilliseconds)
+                                                  .round());
+                                      pc.seek(d);
+                                    },
+                                  ),
+                                ),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 6),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        _fmt(pos),
+                                        style: TextStyle(
+                                          color:
+                                              Colors.white.withOpacity(0.5),
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                      Text(
+                                        _fmt(dur),
+                                        style: TextStyle(
+                                          color:
+                                              Colors.white.withOpacity(0.5),
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Controls
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                IconButton(
+                                  onPressed: () {},
+                                  icon: const Icon(Icons.shuffle_rounded,
+                                      color: Colors.white54),
+                                ),
+                                IconButton(
+                                  iconSize: 40,
+                                  onPressed: _prev,
+                                  icon: const Icon(
+                                      Icons.skip_previous_rounded,
+                                      color: Colors.white),
+                                ),
+                                GestureDetector(
+                                  onTap: pc.toggle,
+                                  child: Container(
+                                    width: 68,
+                                    height: 68,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      pc.isPlaying
+                                          ? Icons.pause_rounded
+                                          : Icons.play_arrow_rounded,
+                                      size: 40,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  iconSize: 40,
+                                  onPressed: _next,
+                                  icon: const Icon(Icons.skip_next_rounded,
+                                      color: Colors.white),
+                                ),
+                                IconButton(
+                                  onPressed: () {},
+                                  icon: const Icon(Icons.repeat_rounded,
+                                      color: Colors.white54),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Lyrics card + artist (YT style)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            child: Column(
+                              children: [
+                                GestureDetector(
+                                  onTap: () =>
+                                      setState(() => _lyricsMode = true),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 14, 16, 14),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          t('Letras', 'Lyrics'),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Icon(Icons.lyrics_outlined,
+                                            color: Colors.white
+                                                .withOpacity(0.5)),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          t('Mostrar', 'Show'),
+                                          style: TextStyle(
+                                            color: Colors.white
+                                                .withOpacity(0.55),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.06),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 22,
+                                        backgroundColor: Colors.white12,
+                                        backgroundImage: cover != null
+                                            ? NetworkImage(cover.toString())
+                                            : null,
+                                        child: cover == null
+                                            ? const Icon(Icons.person,
+                                                color: Colors.white38)
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              t('Artista', 'Artist'),
+                                              style: TextStyle(
+                                                color: Colors.white
+                                                    .withOpacity(0.45),
+                                                fontSize: 11,
+                                              ),
+                                            ),
+                                            Text(
+                                              artist,
+                                              maxLines: 1,
+                                              overflow:
+                                                  TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: _followArtist,
+                                        style: TextButton.styleFrom(
+                                          backgroundColor: Colors.white12,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 14),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(18),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          t('Seguir', 'Follow'),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
           ),
         );
       },
     );
+  }
+
+  void _toggleLike() {
+    setState(() => _liked = !_liked);
+  }
+
+  Future<void> _followArtist() async {
+    final artist = (_song?['artist'] ?? PlayerController.instance.current?['artist'] ?? '').toString();
+    if (artist.isEmpty) return;
+    try {
+      final now = await FollowService.toggle(artist);
+      if (mounted) {
+        setState(() => _following = now);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(now
+                ? t('Siguiendo a $artist', 'Following $artist')
+                : t('Dejaste de seguir a $artist', 'Unfollowed $artist')),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
   }
 
   void _openLiquidShare() {
