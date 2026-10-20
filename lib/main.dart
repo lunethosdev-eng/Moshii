@@ -1,10 +1,12 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/spotify_service.dart';
+import 'package:app_links/app_links.dart';
 import 'package:pokke/screens/auth_screen.dart';
 import 'package:pokke/screens/welcome_screen.dart';
 import 'package:pokke/Bottom%20NavBar/bottom_nav.dart';
@@ -40,8 +42,29 @@ void main() async {
   runApp(const PokkeApp());
 }
 
-class PokkeApp extends StatelessWidget {
+class PokkeApp extends StatefulWidget {
   const PokkeApp({super.key});
+
+  @override
+  State<PokkeApp> createState() => _PokkeAppState();
+}
+
+class _PokkeAppState extends State<PokkeApp> {
+  @override
+  void initState() {
+    super.initState();
+    _listenSpotifyLinks();
+  }
+
+  void _listenSpotifyLinks() {
+    final appLinks = AppLinks();
+    appLinks.uriLinkStream.listen((uri) async {
+      if (uri.scheme == 'pokke') {
+        final ok = await SpotifyService.instance.handleIncomingLink(uri);
+        debugPrint('Spotify incoming link handled: $ok err=${SpotifyService.instance.lastError}');
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
