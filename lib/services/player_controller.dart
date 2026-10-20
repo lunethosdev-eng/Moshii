@@ -8,32 +8,44 @@ import 'package:pokke/services/supabase_service.dart';
 
 class PlayerController extends ChangeNotifier {
   static final PlayerController instance = PlayerController._();
+
   PlayerController._() {
-    void wire(AudioPlayer p, bool isB) {
-      p.onPlayerComplete.listen((_) {
-        if (_usingB == isB) notifyListeners();
-      });
-      p.onPositionChanged.listen((pos) {
-        if (_usingB == isB) {
-          position = pos;
-          notifyListeners();
+    _wire(_playerA, false);
+    _wire(_playerB, true);
+  }
+
+  void _wire(AudioPlayer p, bool isB) {
+    p.onPlayerComplete.listen((_) {
+      if (_usingB == isB && !_advancing) {
+        unawaited(_advanceToNext());
+      }
+    });
+    p.onPositionChanged.listen((pos) {
+      if (_usingB == isB) {
+        position = pos;
+        // near end, ensure next is ready
+        if (duration.inMilliseconds > 0 &&
+            pos.inMilliseconds > duration.inMilliseconds - 4000) {
+          unawaited(_preloadNext());
         }
-      });
-      p.onDurationChanged.listen((d) {
-        if (_usingB == isB) {
-          duration = d;
-          notifyListeners();
-        }
-      });
-    }
-    wire(_playerA, false);
-    wire(_playerB, true);
+        notifyListeners();
+      }
+    });
+    p.onDurationChanged.listen((d) {
+      if (_usingB == isB) {
+        duration = d;
+        notifyListeners();
+      }
+    });
   }
 
   final AudioPlayer _playerA = AudioPlayer();
   final AudioPlayer _playerB = AudioPlayer();
   bool _usingB = false;
   bool _pausedForDj = false;
+  bool _advancing = false;
+  bool _nextReady = false;
+  int _preloadedIndex = -1;
 
   Map<String, dynamic>? currentSong;
   Map<String, dynamic>? get current => currentSong;
@@ -42,7 +54,21 @@ class PlayerController extends ChangeNotifier {
   int queueIndex = 0;
   bool shuffleMode = false;
 
-  Future<void> playPlaylist(List<Map<String, dynamic>> songs, {bool shuffle = false, int startIndex = 0}) async {
+  Duration position = Duration.zero;
+  Duration duration = Duration.zero;
+  bool isPlaying = false;
+
+  AudioPlayer get _active => _usingB ? _playerB : _playerA;
+  AudioPlayer get _idle => _usingB ? _playerA : _playerB;
+
+  String _songKey(Map<String, dynamic> s) =>
+      (s['id'] ?? s['audio_url'] ?? s['title']).toString();
+
+  Future<void> playPlaylist(
+    List<Map<String, dynamic>> songs, {
+    bool shuffle = false,
+    int startIndex = 0,
+  }) async {
     if (songs.isEmpty) return;
     queue = List<Map<String, dynamic>>.from(songs);
     shuffleMode = shuffle;
@@ -52,65 +78,113 @@ class PlayerController extends ChangeNotifier {
     } else {
       queueIndex = startIndex.clamp(0, queue.length - 1);
     }
-    // wire completion to next
-    _active.onPlayerComplete.listen((_) {
-      playNextInQueue();
-    });
+    _nextReady = false;
+    _preloadedIndex = -1;
     await playSong(queue[queueIndex], forceRestart: true);
   }
 
-
   Future<void> _preloadNext() async {
     try {
-      if (queue.isEmpty) return;
+      if (queue.length < 2) return;
       final nextIdx = (queueIndex + 1) % queue.length;
-      if (nextIdx == queueIndex && queue.length == 1) return;
+      if (_nextReady && _preloadedIndex == nextIdx) return;
       final next = queue[nextIdx];
       final url = (next['audio_url'] ?? next['stream_url'] ?? '').toString();
-      if (url.isEmpty) return;
-      final idle = _usingB ? _playerA : _playerB;
-      await idle.stop();
-      await idle.play(UrlSource(url));
-      await idle.pause();
-      await idle.seek(Duration.zero);
-      // also warm disk cache
-      final id = (next['id'] ?? '').toString();
-      AudioCacheService.instance.ensureSongCached(
-        id: id.isEmpty ? _songKey(next) : id,
-        title: (next['title'] ?? '').toString(),
-        artist: (next['artist'] ?? '').toString(),
-        url: url,
-      );
+      final id = (next['id'] ?? _songKey(next)).toString();
+
+      // Prefer local cache
+      String? local = await AudioCacheService.instance.localPathForSongId(id);
+      await _idle.stop();
+      if (local != null) {
+        await _idle.play(DeviceFileSource(local), volume: 0);
+      } else if (url.isNotEmpty) {
+        await _idle.play(UrlSource(url), volume: 0);
+        unawaited(AudioCacheService.instance.ensureSongCached(
+          id: id,
+          title: (next['title'] ?? '').toString(),
+          artist: (next['artist'] ?? '').toString(),
+          url: url,
+        ));
+      } else {
+        return;
+      }
+      await _idle.pause();
+      await _idle.seek(Duration.zero);
+      await _idle.setVolume(1);
+      _nextReady = true;
+      _preloadedIndex = nextIdx;
+      debugPrint('preloaded queue[$nextIdx] ${(next['title'] ?? '')}');
     } catch (e) {
+      _nextReady = false;
       debugPrint('preloadNext: $e');
+    }
+  }
+
+  Future<void> _advanceToNext() async {
+    if (_advancing || queue.isEmpty) return;
+    _advancing = true;
+    try {
+      final nextIdx = (queueIndex + 1) % queue.length;
+      queueIndex = nextIdx;
+      final next = queue[nextIdx];
+      currentSong = next;
+      notifyListeners();
+
+      if (_nextReady && _preloadedIndex == nextIdx) {
+        // Instant switch: idle already has the source
+        try {
+          await _active.stop();
+        } catch (_) {}
+        _usingB = !_usingB;
+        _nextReady = false;
+        _preloadedIndex = -1;
+        await _active.resume();
+        // if resume fails (some platforms need play), fall through
+        final st = await _active.state;
+        if (st != PlayerState.playing) {
+          await _active.seek(Duration.zero);
+          await _active.resume();
+        }
+        isPlaying = true;
+        position = Duration.zero;
+        notifyListeners();
+        unawaited(_recordPlay(next));
+        unawaited(_preloadNext());
+        return;
+      }
+
+      // Fallback: normal load
+      await playSong(next, forceRestart: true);
+    } catch (e) {
+      debugPrint('advanceToNext: $e');
+      try {
+        await playSong(queue[queueIndex], forceRestart: true);
+      } catch (_) {}
+    } finally {
+      _advancing = false;
     }
   }
 
   Future<void> playNextInQueue() async {
     if (queue.isEmpty) return;
-    queueIndex = (queueIndex + 1) % queue.length;
-    await playSong(queue[queueIndex], forceRestart: true);
+    await _advanceToNext();
   }
 
   Future<void> playPreviousInQueue() async {
     if (queue.isEmpty) return;
     queueIndex = (queueIndex - 1) < 0 ? queue.length - 1 : queueIndex - 1;
+    _nextReady = false;
+    _preloadedIndex = -1;
     await playSong(queue[queueIndex], forceRestart: true);
   }
 
-
-  bool isPlaying = false;
-  Duration position = Duration.zero;
-  Duration duration = Duration.zero;
-
-  AudioPlayer get _active => _usingB ? _playerB : _playerA;
-
-  String _songKey(Map<String, dynamic> s) =>
-      (s['id'] ?? s['audio_url'] ?? s['title']).toString();
-
-  Future<void> playSong(Map<String, dynamic> song, {bool forceRestart = false}) async {
+  Future<void> playSong(Map<String, dynamic> song,
+      {bool forceRestart = false}) async {
     final key = _songKey(song);
-    if (!forceRestart && currentSong != null && _songKey(currentSong!) == key && isPlaying) {
+    if (!forceRestart &&
+        currentSong != null &&
+        _songKey(currentSong!) == key &&
+        isPlaying) {
       return;
     }
     currentSong = song;
@@ -121,16 +195,15 @@ class PlayerController extends ChangeNotifier {
     final artist = (song['artist'] ?? '').toString();
     final url = (song['audio_url'] ?? song['stream_url'] ?? '').toString();
 
-    // Prefer persistent local cache
-    String? sourcePath = await AudioCacheService.instance.localPathForSongId(id);
+    String? sourcePath =
+        await AudioCacheService.instance.localPathForSongId(id);
     if (sourcePath == null && url.isNotEmpty) {
-      // Fire-and-forget cache for next time; stream now if needed
-      AudioCacheService.instance.ensureSongCached(
+      unawaited(AudioCacheService.instance.ensureSongCached(
         id: id,
         title: title,
         artist: artist,
         url: url,
-      );
+      ));
     }
 
     try {
@@ -139,87 +212,51 @@ class PlayerController extends ChangeNotifier {
         await _active.play(DeviceFileSource(sourcePath));
       } else if (url.isNotEmpty) {
         await _active.play(UrlSource(url));
-        // also start caching while streaming
-        if (url.isNotEmpty) {
-          AudioCacheService.instance.ensureSongCached(
-            id: id,
-            title: title,
-            artist: artist,
-            url: url,
-          );
-        }
       } else {
         debugPrint('No audio_url for song: $title');
         return;
       }
       isPlaying = true;
       _pausedForDj = false;
+      _nextReady = false;
       notifyListeners();
-      // Preload next track on inactive player for seamless transition
-      unawaited(_preloadNext());
-      try {
-        if (SettingsService.instance.historyLocal) {
-        await ListeningHistory.instance.recordPlay(song);
-      }
-      } catch (_) {}
-      try {
-        await SupabaseService.kokoro.from('song_plays').insert({
-          'song_id': id,
-          'title': title,
-          'artist': artist,
-        });
-      } catch (_) {}
+      unawaited(_recordPlay(song));
+      // Preload next ASAP
+      unawaited(Future.delayed(const Duration(milliseconds: 400), _preloadNext));
     } catch (e) {
       debugPrint('playSong error: $e');
     }
   }
 
-  
-  /// Bind UI to a song without restarting playback if already current.
+  Future<void> _recordPlay(Map<String, dynamic> song) async {
+    try {
+      if (SettingsService.instance.historyLocal) {
+        await ListeningHistory.instance.recordPlay(song);
+      }
+    } catch (_) {}
+    try {
+      await SupabaseService.kokoro.from('song_plays').insert({
+        'song_id': (song['id'] ?? '').toString(),
+        'title': (song['title'] ?? '').toString(),
+        'artist': (song['artist'] ?? '').toString(),
+      });
+    } catch (_) {}
+  }
+
   void attachSong(Map<String, dynamic> song) {
     final key = _songKey(song);
     if (currentSong != null && _songKey(currentSong!) == key) {
       notifyListeners();
       return;
     }
-    // Soft attach: set metadata; playback may already be running
     currentSong = song;
     notifyListeners();
   }
 
   Future<void> seek(Duration position) async {
-    try {
-      await _active.seek(position);
-      this.position = position;
-      notifyListeners();
-    } catch (_) {}
-  }
-
-  Future<void> pauseForDj() async {
-    if (!isPlaying) {
-      _pausedForDj = false;
-      return;
-    }
-    _pausedForDj = true;
-    try {
-      await _active.pause();
-    } catch (_) {}
-    isPlaying = false;
+    await _active.seek(position);
+    this.position = position;
     notifyListeners();
-  }
-
-  Future<void> resumeAfterDj() async {
-    if (!_pausedForDj && currentSong == null) return;
-    try {
-      await _active.resume();
-      isPlaying = true;
-      _pausedForDj = false;
-      notifyListeners();
-    } catch (_) {
-      if (currentSong != null) {
-        await playSong(currentSong!, forceRestart: true);
-      }
-    }
   }
 
   Future<void> toggle() async {
@@ -233,51 +270,57 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> stop() async {
-    await _active.stop();
+  Future<void> pause() async {
+    await _active.pause();
     isPlaying = false;
     notifyListeners();
   }
 
-  Future<void> crossfadeTo(Map<String, dynamic> next, {Duration? fade}) async {
-    final s = SettingsService.instance;
-    fade ??= Duration(milliseconds: (s.crossfadeSeconds * 1000).round());
-    if (!s.crossfade && !s.flag('play_crossfade', def: true)) {
-      await playSong(next, forceRestart: true);
+  Future<void> resume() async {
+    await _active.resume();
+    isPlaying = true;
+    notifyListeners();
+  }
+
+  /// Crossfade to another song using dual players (settings crossfade).
+  Future<void> crossfadeTo(Map<String, dynamic> song,
+      {Duration fade = const Duration(seconds: 4)}) async {
+    final url = (song['audio_url'] ?? song['stream_url'] ?? '').toString();
+    if (url.isEmpty) {
+      await playSong(song, forceRestart: true);
       return;
     }
-    final url = next['audio_url'] ?? next['stream_url'];
-    if (url == null) {
-      await playSong(next, forceRestart: true);
-      return;
-    }
-    final incoming = _usingB ? _playerA : _playerB;
-    final outgoing = _active;
+    final incoming = _idle;
     try {
-      await incoming.setVolume(0);
-      final id = (next['id'] ?? '').toString();
-      final local = id.isEmpty ? null : await AudioCacheService.instance.localPathForSongId(id);
+      final id = (song['id'] ?? _songKey(song)).toString();
+      final local = await AudioCacheService.instance.localPathForSongId(id);
+      await incoming.stop();
       if (local != null) {
         await incoming.play(DeviceFileSource(local));
       } else {
-        await incoming.play(UrlSource(url.toString()));
+        await incoming.play(UrlSource(url));
       }
-      const steps = 20;
-      final stepMs = fade.inMilliseconds ~/ steps;
+      await incoming.setVolume(0);
+      final steps = 20;
+      final ms = fade.inMilliseconds ~/ steps;
       for (var i = 1; i <= steps; i++) {
-        await Future.delayed(Duration(milliseconds: stepMs));
         final t = i / steps;
+        await _active.setVolume(1.0 - t);
         await incoming.setVolume(t);
-        await outgoing.setVolume(1 - t);
+        await Future.delayed(Duration(milliseconds: ms));
       }
-      await outgoing.stop();
-      await outgoing.setVolume(1);
+      await _active.stop();
+      await _active.setVolume(1);
+      await incoming.setVolume(1);
       _usingB = !_usingB;
-      currentSong = next;
+      currentSong = song;
       isPlaying = true;
+      _nextReady = false;
       notifyListeners();
-    } catch (_) {
-      await playSong(next, forceRestart: true);
+      unawaited(_preloadNext());
+    } catch (e) {
+      debugPrint('crossfade: $e');
+      await playSong(song, forceRestart: true);
     }
   }
 }
