@@ -6,6 +6,7 @@ import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/spotify_service.dart';
+import 'package:pokke/services/player_controller.dart';
 import 'package:app_links/app_links.dart';
 import 'package:pokke/screens/auth_screen.dart';
 import 'package:pokke/screens/welcome_screen.dart';
@@ -35,6 +36,7 @@ void main() async {
   await SettingsService.instance.load();
   await ListeningHistory.instance.load();
   await SpotifyService.instance.load();
+  await PlayerController.instance.restoreSession();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
