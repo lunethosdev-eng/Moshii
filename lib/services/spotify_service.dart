@@ -1,15 +1,18 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'package:app_links/app_links.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/music_api_service.dart';
 
-/// Spotify OAuth (PKCE) + playlist import.
-/// Dashboard Redirect URI must be EXACTLY:
+/// Spotify OAuth PKCE.
+/// Redirect URI en Dashboard (exacto, sin slash final):
 ///   pokke://spotify-callback
 class SpotifyService {
   static final SpotifyService instance = SpotifyService._();
@@ -52,9 +55,7 @@ class SpotifyService {
   Future<void> _persist() async {
     final p = await SharedPreferences.getInstance();
     await p.setString('spotify_client_id', clientId);
-    if (accessToken != null) {
-      await p.setString('spotify_access', accessToken!);
-    }
+    if (accessToken != null) await p.setString('spotify_access', accessToken!);
     if (refreshToken != null) {
       await p.setString('spotify_refresh', refreshToken!);
     }
@@ -90,6 +91,8 @@ class SpotifyService {
     return base64Url.encode(digest.bytes).replaceAll('=', '');
   }
 
+  /// Primary: open browser/Custom Tabs + wait for deep link.
+  /// Fallback: flutter_web_auth_2.
   Future<bool> connect() async {
     lastError = null;
     await load();
@@ -108,53 +111,147 @@ class SpotifyService {
       'show_dialog': 'true',
     });
 
+    // Persist verifier so we can exchange even if process is killed
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('spotify_pkce_verifier', verifier);
+    await prefs.setString('spotify_pkce_state', state);
+
+    if (kIsWeb) {
+      return _connectWebAuth(authUri, verifier);
+    }
+
+    // Mobile: deep link first
+    final deepOk = await _connectDeepLink(authUri, verifier, state);
+    if (deepOk) return true;
+
+    // Fallback flutter_web_auth_2
+    debugPrint('Spotify deep-link failed ($lastError), trying web_auth…');
+    return _connectWebAuth(authUri, verifier);
+  }
+
+  Future<bool> _connectDeepLink(
+      Uri authUri, String verifier, String state) async {
+    final completer = Completer<Uri?>();
+    StreamSubscription? sub;
+    Timer? timer;
+
     try {
-      debugPrint('Spotify auth → $authUri');
+      final appLinks = AppLinks();
+
+      // Pending link (cold start)
+      try {
+        final initial = await appLinks.getInitialLink();
+        if (initial != null && initial.scheme == 'pokke') {
+          completer.complete(initial);
+        }
+      } catch (_) {}
+
+      sub = appLinks.uriLinkStream.listen((uri) {
+        debugPrint('Spotify deep link: $uri');
+        if (!completer.isCompleted &&
+            (uri.scheme == 'pokke' ||
+                uri.toString().contains('spotify-callback'))) {
+          completer.complete(uri);
+        }
+      }, onError: (e) {
+        debugPrint('app_links error: $e');
+      });
+
+      final launched = await launchUrl(
+        authUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        lastError = 'no_se_pudo_abrir_navegador';
+        return false;
+      }
+
+      timer = Timer(const Duration(seconds: 120), () {
+        if (!completer.isCompleted) completer.complete(null);
+      });
+
+      final result = await completer.future;
+      if (result == null) {
+        lastError =
+            'timeout_sin_callback · ¿Redirect en Dashboard es exactamente pokke://spotify-callback ?';
+        return false;
+      }
+      return _handleCallbackUri(result, verifier, state);
+    } catch (e) {
+      lastError = 'deeplink: $e';
+      return false;
+    } finally {
+      await sub?.cancel();
+      timer?.cancel();
+    }
+  }
+
+  Future<bool> _connectWebAuth(Uri authUri, String verifier) async {
+    try {
       final result = await FlutterWebAuth2.authenticate(
         url: authUri.toString(),
         callbackUrlScheme: kIsWeb ? 'https' : 'pokke',
       );
-      debugPrint('Spotify callback raw: $result');
-
+      debugPrint('web_auth result: $result');
       final uri = Uri.parse(result);
-      // Handle both query and fragment
-      final params = Map<String, String>.from(uri.queryParameters);
-      if (uri.fragment.isNotEmpty) {
-        params.addAll(Uri.splitQueryString(uri.fragment));
-      }
-
-      final code = params['code'];
-      final err = params['error'];
-      if (err != null) {
-        lastError = 'spotify_$err';
-        return false;
-      }
-      if (code == null || code.isEmpty) {
-        lastError =
-            'callback_sin_code · URI recibida: ${result.length > 80 ? result.substring(0, 80) : result}';
-        return false;
-      }
-      final ok = await _exchangeCode(code, verifier);
-      if (ok) {
-        await _fetchMe();
-      }
-      return ok;
-    } catch (e, st) {
+      return _handleCallbackUri(uri, verifier, null);
+    } catch (e) {
       final msg = e.toString();
-      debugPrint('Spotify connect error: $e\n$st');
+      debugPrint('web_auth error: $e');
       if (msg.contains('CANCELED') ||
           msg.contains('canceled') ||
-          msg.contains('cancelled') ||
-          msg.contains('User canceled') ||
-          msg.contains('user canceled')) {
-        // Real cancel vs missing callback: on Android missing activity often looks like cancel
+          msg.contains('cancelled')) {
         lastError =
-            'auth_cancel_o_sin_callback · Añade en Spotify Dashboard: pokke://spotify-callback';
-        return false;
+            'auth_cancel_o_sin_callback · Redirect Dashboard: pokke://spotify-callback';
+      } else {
+        lastError = msg.length > 160 ? msg.substring(0, 160) : msg;
       }
-      lastError = msg.length > 160 ? msg.substring(0, 160) : msg;
       return false;
     }
+  }
+
+  Future<bool> _handleCallbackUri(
+      Uri uri, String verifier, String? expectedState) async {
+    final params = Map<String, String>.from(uri.queryParameters);
+    if (uri.fragment.isNotEmpty) {
+      params.addAll(Uri.splitQueryString(uri.fragment));
+    }
+    final code = params['code'];
+    final err = params['error'];
+    final st = params['state'];
+    if (err != null) {
+      lastError = 'spotify_$err';
+      return false;
+    }
+    if (expectedState != null && st != null && st != expectedState) {
+      lastError = 'state_mismatch';
+      return false;
+    }
+    if (code == null || code.isEmpty) {
+      lastError = 'callback_sin_code · $uri';
+      return false;
+    }
+    final ok = await _exchangeCode(code, verifier);
+    if (ok) await _fetchMe();
+    return ok;
+  }
+
+  /// Call from main.dart when app receives pokke:// link while running.
+  Future<bool> handleIncomingLink(Uri uri) async {
+    if (uri.scheme != 'pokke') return false;
+    final prefs = await SharedPreferences.getInstance();
+    final verifier = prefs.getString('spotify_pkce_verifier');
+    final state = prefs.getString('spotify_pkce_state');
+    if (verifier == null) {
+      lastError = 'sin_verifier_pkce';
+      return false;
+    }
+    final ok = await _handleCallbackUri(uri, verifier, state);
+    if (ok) {
+      await prefs.remove('spotify_pkce_verifier');
+      await prefs.remove('spotify_pkce_state');
+    }
+    return ok;
   }
 
   Future<bool> _exchangeCode(String code, String verifier) async {
@@ -170,7 +267,7 @@ class SpotifyService {
           'code_verifier': verifier,
         },
       );
-      debugPrint('Spotify token status ${res.statusCode}: ${res.body}');
+      debugPrint('token ${res.statusCode}: ${res.body}');
       if (res.statusCode != 200) {
         lastError = 'token_${res.statusCode}: ${res.body}';
         return false;
@@ -209,7 +306,7 @@ class SpotifyService {
         await p.setString('spotify_image', profileImage!);
       }
     } catch (e) {
-      debugPrint('spotify /me: $e');
+      debugPrint('/me $e');
     }
   }
 
