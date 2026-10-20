@@ -344,22 +344,99 @@ class SpotifyService {
 
   Future<List<Map<String, dynamic>>> fetchPlaylists() async {
     final token = await _token();
-    if (token == null) return [];
+    if (token == null) {
+      lastError = 'sin_token';
+      return [];
+    }
     final out = <Map<String, dynamic>>[];
     var url = 'https://api.spotify.com/v1/me/playlists?limit=50';
     while (url.isNotEmpty) {
       final res = await http.get(Uri.parse(url), headers: {
         'Authorization': 'Bearer $token',
       });
-      if (res.statusCode != 200) break;
+      debugPrint('spotify playlists ${res.statusCode}: ${res.body.length > 200 ? res.body.substring(0, 200) : res.body}');
+      if (res.statusCode == 401 || res.statusCode == 403) {
+        lastError =
+            'playlists_${res.statusCode}: vuelve a conectar Spotify (permisos)';
+        break;
+      }
+      if (res.statusCode != 200) {
+        lastError = 'playlists_${res.statusCode}: ${res.body}';
+        break;
+      }
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       final items = data['items'] as List? ?? [];
       for (final it in items) {
-        if (it is Map<String, dynamic>) out.add(it);
+        // Spotify puede devolver null en items
+        if (it is Map<String, dynamic> && it['id'] != null) {
+          out.add(it);
+        }
       }
       url = (data['next'] as String?) ?? '';
     }
+    if (out.isEmpty && lastError == null) {
+      lastError = 'cero_playlists_en_cuenta';
+    }
     return out;
+  }
+
+  /// Import only selected playlist ids (+ optional liked songs).
+  Future<int> importSelectedPlaylists(
+    List<String> playlistIds, {
+    bool includeLiked = false,
+    void Function(String message, double? progress)? onStatus,
+  }) async {
+    final uid = SupabaseService.currentUser?.id;
+    if (uid == null) {
+      lastError = 'not_logged_in';
+      return 0;
+    }
+    int created = 0;
+    final all = await fetchPlaylists();
+    final selected = all
+        .where((p) => playlistIds.contains((p['id'] ?? '').toString()))
+        .toList();
+
+    if (includeLiked) {
+      onStatus?.call('Liked Songs…', 0.05);
+      final liked = await fetchLikedTracks();
+      if (liked.isNotEmpty) {
+        await _importOnePlaylist(
+          name: 'Liked Songs',
+          cover: liked.first['cover_url']?.toString(),
+          tracks: liked,
+          uid: uid,
+          onStatus: onStatus,
+        );
+        created++;
+      }
+    }
+
+    for (var i = 0; i < selected.length; i++) {
+      final pl = selected[i];
+      final name = (pl['name'] ?? 'Playlist').toString();
+      final id = (pl['id'] ?? '').toString();
+      if (id.isEmpty) continue;
+      onStatus?.call(
+        'Importando $name…',
+        selected.isEmpty ? null : (i + 1) / selected.length,
+      );
+      final tracks = await fetchPlaylistTracks(id);
+      final images = pl['images'] as List?;
+      final cover = images != null && images.isNotEmpty
+          ? images.first['url']?.toString()
+          : null;
+      await _importOnePlaylist(
+        name: name,
+        cover: cover,
+        tracks: tracks,
+        uid: uid,
+        onStatus: onStatus,
+      );
+      created++;
+    }
+    onStatus?.call('Listo · $created playlists', 1);
+    return created;
   }
 
   Future<List<Map<String, dynamic>>> fetchPlaylistTracks(
