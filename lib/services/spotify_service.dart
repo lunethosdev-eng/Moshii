@@ -8,10 +8,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/music_api_service.dart';
 
-/// Spotify OAuth (PKCE) + playlist import into pokke.
-/// Redirect URI in Spotify Dashboard:
-///   Mobile: pokke://spotify-callback
-///   Web:    https://lunethosdev-eng.github.io/Moshii/spotify-callback.html
+/// Spotify OAuth (PKCE) + playlist import.
+/// Dashboard Redirect URI must be EXACTLY:
+///   pokke://spotify-callback
 class SpotifyService {
   static final SpotifyService instance = SpotifyService._();
   SpotifyService._();
@@ -28,7 +27,6 @@ class SpotifyService {
   String? refreshToken;
   DateTime? expiresAt;
   String? lastError;
-
   String? displayName;
   String? profileImage;
 
@@ -71,14 +69,18 @@ class SpotifyService {
     refreshToken = null;
     expiresAt = null;
     lastError = null;
+    displayName = null;
+    profileImage = null;
     await p.remove('spotify_access');
     await p.remove('spotify_refresh');
     await p.remove('spotify_expires');
+    await p.remove('spotify_name');
+    await p.remove('spotify_image');
   }
 
   String _randomString(int length) {
     const chars =
-        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~';
     final rnd = Random.secure();
     return List.generate(length, (_) => chars[rnd.nextInt(chars.length)]).join();
   }
@@ -90,6 +92,7 @@ class SpotifyService {
 
   Future<bool> connect() async {
     lastError = null;
+    await load();
     final verifier = _randomString(64);
     final challenge = _codeChallenge(verifier);
     final state = _randomString(16);
@@ -106,34 +109,50 @@ class SpotifyService {
     });
 
     try {
+      debugPrint('Spotify auth → $authUri');
       final result = await FlutterWebAuth2.authenticate(
         url: authUri.toString(),
         callbackUrlScheme: kIsWeb ? 'https' : 'pokke',
       );
+      debugPrint('Spotify callback raw: $result');
+
       final uri = Uri.parse(result);
-      final code = uri.queryParameters['code'];
-      final err = uri.queryParameters['error'];
+      // Handle both query and fragment
+      final params = Map<String, String>.from(uri.queryParameters);
+      if (uri.fragment.isNotEmpty) {
+        params.addAll(Uri.splitQueryString(uri.fragment));
+      }
+
+      final code = params['code'];
+      final err = params['error'];
       if (err != null) {
-        lastError = err;
+        lastError = 'spotify_$err';
         return false;
       }
       if (code == null || code.isEmpty) {
-        lastError = 'no_code';
+        lastError =
+            'callback_sin_code · URI recibida: ${result.length > 80 ? result.substring(0, 80) : result}';
         return false;
       }
-      return await _exchangeCode(code, verifier);
-    } catch (e) {
+      final ok = await _exchangeCode(code, verifier);
+      if (ok) {
+        await _fetchMe();
+      }
+      return ok;
+    } catch (e, st) {
       final msg = e.toString();
+      debugPrint('Spotify connect error: $e\n$st');
       if (msg.contains('CANCELED') ||
           msg.contains('canceled') ||
           msg.contains('cancelled') ||
-          msg.contains('User canceled')) {
-        lastError = null;
-        debugPrint('Spotify connect canceled by user');
+          msg.contains('User canceled') ||
+          msg.contains('user canceled')) {
+        // Real cancel vs missing callback: on Android missing activity often looks like cancel
+        lastError =
+            'auth_cancel_o_sin_callback · Añade en Spotify Dashboard: pokke://spotify-callback';
         return false;
       }
-      lastError = msg;
-      debugPrint('Spotify connect error: $e');
+      lastError = msg.length > 160 ? msg.substring(0, 160) : msg;
       return false;
     }
   }
@@ -151,9 +170,9 @@ class SpotifyService {
           'code_verifier': verifier,
         },
       );
+      debugPrint('Spotify token status ${res.statusCode}: ${res.body}');
       if (res.statusCode != 200) {
         lastError = 'token_${res.statusCode}: ${res.body}';
-        debugPrint(lastError);
         return false;
       }
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -162,8 +181,7 @@ class SpotifyService {
       final expiresIn = data['expires_in'] as int? ?? 3600;
       expiresAt = DateTime.now().add(Duration(seconds: expiresIn - 30));
       await _persist();
-      await _fetchMe();
-      return true;
+      return accessToken != null && accessToken!.isNotEmpty;
     } catch (e) {
       lastError = e.toString();
       return false;
@@ -172,7 +190,7 @@ class SpotifyService {
 
   Future<void> _fetchMe() async {
     try {
-      final token = accessToken;
+      final token = await _token();
       if (token == null) return;
       final res = await http.get(
         Uri.parse('https://api.spotify.com/v1/me'),
@@ -321,7 +339,6 @@ class SpotifyService {
     return out;
   }
 
-  /// Import Spotify playlists (+ Liked Songs) into pokke Supabase.
   Future<int> importAllPlaylists({
     void Function(String message, double? progress)? onStatus,
   }) async {
@@ -332,7 +349,6 @@ class SpotifyService {
     }
     int created = 0;
     final lists = await fetchPlaylists();
-
     final liked = await fetchLikedTracks();
     if (liked.isNotEmpty) {
       onStatus?.call('Liked Songs…', 0.05);
@@ -345,7 +361,6 @@ class SpotifyService {
       );
       created++;
     }
-
     for (var i = 0; i < lists.length; i++) {
       final pl = lists[i];
       final name = (pl['name'] ?? 'Playlist').toString();
