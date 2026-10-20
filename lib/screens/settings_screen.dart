@@ -277,58 +277,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                                content: Text(t('Spotify desconectado',
-                                    'Spotify disconnected'))),
+                              content: Text(t('Spotify desconectado',
+                                  'Spotify disconnected')),
+                            ),
                           );
                           setState(() {});
                         }
                         return;
                       }
                       final ok = await SpotifyService.instance.connect();
-                      if (context.mounted) {
-                        if (ok) {
+                      if (!context.mounted) return;
+                      if (ok) {
                         showDialog(
                           context: context,
                           barrierDismissible: false,
                           builder: (ctx) => AlertDialog(
                             backgroundColor: const Color(0xFF1A1A1E),
-                            title: Text(t('Importando Spotify…', 'Importing Spotify…'),
-                                style: const TextStyle(color: Colors.white)),
+                            title: Text(
+                              t('Importando Spotify…', 'Importing Spotify…'),
+                              style: const TextStyle(color: Colors.white),
+                            ),
                             content: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: const [
-                                CircularProgressIndicator(color: Color(0xfffc3c44)),
+                                CircularProgressIndicator(
+                                    color: Color(0xfffc3c44)),
                                 SizedBox(height: 14),
-                                Text('Liked Songs y playlists…',
-                                    style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                Text(
+                                  'Liked Songs y playlists…',
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 13),
+                                ),
                               ],
                             ),
                           ),
                         );
-                        final n = await SpotifyService.instance.importAllPlaylists();
+                        final n =
+                            await SpotifyService.instance.importAllPlaylists();
                         if (context.mounted) {
                           Navigator.of(context, rootNavigator: true).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(t('Importadas $n playlists', 'Imported $n playlists')),
-                            backgroundColor: const Color(0xfffc3c44),
-                          ));
-                        }
-                      }} else if (SpotifyService.instance.lastError != null &&
-                            SpotifyService.instance.lastError!.isNotEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(_spotifyErrorText())),
+                            SnackBar(
+                              content: Text(t('Importadas $n playlists',
+                                  'Imported $n playlists')),
+                              backgroundColor: const Color(0xfffc3c44),
+                            ),
                           );
                         }
-                        // cancel silencioso — sin snackbar
-                        setState(() {});
+                      } else if (SpotifyService.instance.lastError != null &&
+                          SpotifyService.instance.lastError!.isNotEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(_spotifyErrorText())),
+                        );
                       }
+                      if (context.mounted) setState(() {});
                     },
                     child: Text(
                       SpotifyService.instance.isLinked
                           ? t('Salir', 'Unlink')
                           : t('Conectar', 'Connect'),
                       style: const TextStyle(
-                          color: Color(0xFF1DB954), fontWeight: FontWeight.w700),
+                          color: Color(0xFF1DB954),
+                          fontWeight: FontWeight.w700),
                     ),
                   ),
                 ),
