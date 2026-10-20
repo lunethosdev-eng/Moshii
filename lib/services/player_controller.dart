@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pokke/services/audio_cache_service.dart';
@@ -56,6 +57,33 @@ class PlayerController extends ChangeNotifier {
       playNextInQueue();
     });
     await playSong(queue[queueIndex], forceRestart: true);
+  }
+
+
+  Future<void> _preloadNext() async {
+    try {
+      if (queue.isEmpty) return;
+      final nextIdx = (queueIndex + 1) % queue.length;
+      if (nextIdx == queueIndex && queue.length == 1) return;
+      final next = queue[nextIdx];
+      final url = (next['audio_url'] ?? next['stream_url'] ?? '').toString();
+      if (url.isEmpty) return;
+      final idle = _usingB ? _playerA : _playerB;
+      await idle.stop();
+      await idle.play(UrlSource(url));
+      await idle.pause();
+      await idle.seek(Duration.zero);
+      // also warm disk cache
+      final id = (next['id'] ?? '').toString();
+      AudioCacheService.instance.ensureSongCached(
+        id: id.isEmpty ? _songKey(next) : id,
+        title: (next['title'] ?? '').toString(),
+        artist: (next['artist'] ?? '').toString(),
+        url: url,
+      );
+    } catch (e) {
+      debugPrint('preloadNext: $e');
+    }
   }
 
   Future<void> playNextInQueue() async {
@@ -127,6 +155,8 @@ class PlayerController extends ChangeNotifier {
       isPlaying = true;
       _pausedForDj = false;
       notifyListeners();
+      // Preload next track on inactive player for seamless transition
+      unawaited(_preloadNext());
       try {
         if (SettingsService.instance.historyLocal) {
         await ListeningHistory.instance.recordPlay(song);
