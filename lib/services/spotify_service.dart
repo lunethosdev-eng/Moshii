@@ -29,10 +29,12 @@ class SpotifyService {
   DateTime? expiresAt;
   String? lastError;
 
+  String? displayName;
+  String? profileImage;
+
   bool get isLinked =>
-      accessToken != null &&
-      accessToken!.isNotEmpty &&
-      (expiresAt == null || expiresAt!.isAfter(DateTime.now()));
+      (accessToken != null && accessToken!.isNotEmpty) ||
+      (refreshToken != null && refreshToken!.isNotEmpty);
 
   String get redirectUri => kIsWeb ? webRedirect : mobileRedirect;
 
@@ -45,6 +47,8 @@ class SpotifyService {
     if (exp != null) {
       expiresAt = DateTime.fromMillisecondsSinceEpoch(exp);
     }
+    displayName = p.getString('spotify_name');
+    profileImage = p.getString('spotify_image');
   }
 
   Future<void> _persist() async {
@@ -158,10 +162,36 @@ class SpotifyService {
       final expiresIn = data['expires_in'] as int? ?? 3600;
       expiresAt = DateTime.now().add(Duration(seconds: expiresIn - 30));
       await _persist();
+      await _fetchMe();
       return true;
     } catch (e) {
       lastError = e.toString();
       return false;
+    }
+  }
+
+  Future<void> _fetchMe() async {
+    try {
+      final token = accessToken;
+      if (token == null) return;
+      final res = await http.get(
+        Uri.parse('https://api.spotify.com/v1/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      displayName = data['display_name']?.toString() ?? data['id']?.toString();
+      final images = data['images'] as List?;
+      if (images != null && images.isNotEmpty) {
+        profileImage = images.first['url']?.toString();
+      }
+      final p = await SharedPreferences.getInstance();
+      if (displayName != null) await p.setString('spotify_name', displayName!);
+      if (profileImage != null) {
+        await p.setString('spotify_image', profileImage!);
+      }
+    } catch (e) {
+      debugPrint('spotify /me: $e');
     }
   }
 
