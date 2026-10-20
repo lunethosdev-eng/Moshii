@@ -1207,8 +1207,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                                     inactiveTrackColor:
                                         Colors.white.withOpacity(0.18),
                                     thumbColor: Colors.white,
-                                    overlayColor: WidgetStateProperty.all(
-                                        Colors.white.withOpacity(0.12)),
+                                    overlayColor: Colors.white.withOpacity(0.12),
                                   ),
                                   child: Slider(
                                     value: progress.clamp(0.0, 1.0),
