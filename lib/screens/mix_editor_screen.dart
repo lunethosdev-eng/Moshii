@@ -136,7 +136,10 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
 
   Future<void> _pick(bool isA) async {
     try {
-      final songs = await SupabaseService.searchSongs('', limit: 40);
+      var songs = await SupabaseService.getSongs(limit: 60);
+      if (songs.isEmpty) {
+        songs = await SupabaseService.searchSongs('a', limit: 40);
+      }
       if (!mounted) return;
       final picked = await showModalBottomSheet<Map<String, dynamic>>(
         context: context,
@@ -481,9 +484,9 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
           Container(
             height: 150,
             decoration: BoxDecoration(
-              color: const Color(0xFF121214),
+              color: const Color(0xFF1A1A1E),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.06)),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
             ),
             child: LayoutBuilder(
               builder: (ctx, box) {
