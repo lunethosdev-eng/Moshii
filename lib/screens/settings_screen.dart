@@ -365,10 +365,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           );
                         }
-                      } else if (SpotifyService.instance.lastError != null &&
-                          SpotifyService.instance.lastError!.isNotEmpty) {
+                      } else {
+                        final err = SpotifyService.instance.lastError;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(_spotifyErrorText())),
+                          SnackBar(
+                            content: Text(
+                              err != null && err.isNotEmpty
+                                  ? err
+                                  : t(
+                                      'No se pudo conectar. Redirect: pokke://spotify-callback',
+                                      'Could not connect. Redirect: pokke://spotify-callback',
+                                    ),
+                            ),
+                            duration: const Duration(seconds: 6),
+                            backgroundColor: const Color(0xFF3A1A1A),
+                          ),
                         );
                       }
                       if (context.mounted) setState(() {});
