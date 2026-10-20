@@ -34,6 +34,183 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return err;
   }
 
+
+  Future<void> _importSpotifyWithPicker(BuildContext context) async {
+    String t(String es, String en) =>
+        SettingsService.instance.locale == 'en' ? en : es;
+    final lists = await SpotifyService.instance.fetchPlaylists();
+    if (!mounted) return;
+    if (lists.isEmpty) {
+      final err = SpotifyService.instance.lastError;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            err != null && err.isNotEmpty
+                ? err
+                : t(
+                    'No hay playlists (¿permisos? vuelve a Conectar)',
+                    'No playlists (permissions? reconnect)',
+                  ),
+          ),
+          backgroundColor: const Color(0xFF3A1A1A),
+        ),
+      );
+      return;
+    }
+    final selected = <String>{};
+    var includeLiked = true;
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF121214),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSt) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      t('Elige playlists a importar', 'Pick playlists to import'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      value: includeLiked,
+                      activeColor: const Color(0xFF1DB954),
+                      title: Text(t('Liked Songs', 'Liked Songs'),
+                          style: const TextStyle(color: Colors.white)),
+                      onChanged: (v) => setSt(() => includeLiked = v ?? true),
+                    ),
+                    SizedBox(
+                      height: MediaQuery.of(ctx).size.height * 0.45,
+                      child: ListView.builder(
+                        itemCount: lists.length,
+                        itemBuilder: (_, i) {
+                          final pl = lists[i];
+                          final id = (pl['id'] ?? '').toString();
+                          final name = (pl['name'] ?? 'Playlist').toString();
+                          final total = pl['tracks']?['total'];
+                          final checked = selected.contains(id);
+                          return CheckboxListTile(
+                            value: checked,
+                            activeColor: const Color(0xFF1DB954),
+                            title: Text(name,
+                                style: const TextStyle(color: Colors.white)),
+                            subtitle: total != null
+                                ? Text(
+                                    '$total tracks',
+                                    style: TextStyle(
+                                        color: Colors.white.withOpacity(0.45),
+                                        fontSize: 12),
+                                  )
+                                : null,
+                            onChanged: (v) {
+                              setSt(() {
+                                if (v == true) {
+                                  selected.add(id);
+                                } else {
+                                  selected.remove(id);
+                                }
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1DB954),
+                          foregroundColor: Colors.black,
+                        ),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: Text(
+                          t('Importar seleccionadas', 'Import selected'),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (ok != true || !mounted) return;
+    if (selected.isEmpty && !includeLiked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(t('No elegiste ninguna', 'None selected'))),
+      );
+      return;
+    }
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1E),
+        content: Row(
+          children: [
+            const CircularProgressIndicator(color: Color(0xFF1DB954)),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                t('Importando Spotify…', 'Importing Spotify…'),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    try {
+      final n = await SpotifyService.instance.importSelectedPlaylists(
+        selected.toList(),
+        includeLiked: includeLiked,
+      );
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              t('Importadas: $n playlists', 'Imported: $n playlists'),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = SettingsService.instance;
@@ -149,56 +326,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
 
-              // ── NAV / HOME ────────────────────────────────────
-              _section(t('Navegación e inicio', 'Navigation & home')),
-              LiquidGlass(
-                borderRadius: BorderRadius.circular(14),
-                child: Column(
-                  children: [
-                    SwitchListTile(
-                      activeColor: const Color(0xfffc3c44),
-                      title: Text(t('Etiquetas del nav', 'Nav labels'),
-                          style: const TextStyle(color: Colors.white)),
-                      subtitle: Text(
-                          t('Texto bajo los iconos del bottom bar',
-                              'Text under bottom bar icons'),
-                          style: TextStyle(
-                              color: Colors.white.withOpacity(0.4), fontSize: 11)),
-                      value: s.navLabels,
-                      onChanged: (v) => s.setFlag('nav_labels', v),
-                    ),
-                    SwitchListTile(
-                      activeColor: const Color(0xfffc3c44),
-                      title: Text(t('Burbuja Liquid', 'Liquid bubble'),
-                          style: const TextStyle(color: Colors.white)),
-                      value: s.navBubble,
-                      onChanged: (v) => s.setFlag('nav_bubble', v),
-                    ),
-                    SwitchListTile(
-                      activeColor: const Color(0xfffc3c44),
-                      title: Text(t('Header compacto al scroll', 'Compact header on scroll'),
-                          style: const TextStyle(color: Colors.white)),
-                      value: s.compactHeaderOnScroll,
-                      onChanged: (v) => s.setFlag('ui_compact_header', v),
-                    ),
-                    SwitchListTile(
-                      activeColor: const Color(0xfffc3c44),
-                      title: Text(t('Mostrar Radio', 'Show Radio'),
-                          style: const TextStyle(color: Colors.white)),
-                      value: s.showRadioTab,
-                      onChanged: (v) => s.setFlag('ui_show_radio', v),
-                    ),
-                    SwitchListTile(
-                      activeColor: const Color(0xfffc3c44),
-                      title: Text(t('Library en cuadrícula', 'Library grid'),
-                          style: const TextStyle(color: Colors.white)),
-                      value: s.libraryGrid,
-                      onChanged: (v) => s.setFlag('lib_grid', v),
-                    ),
-                  ],
-                ),
-              ),
-
               // ── PLAYBACK ──────────────────────────────────────
               _section(t('Reproducción', 'Playback')),
               LiquidGlass(
@@ -286,85 +413,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onPressed: () async {
                       await SpotifyService.instance.load();
                       if (SpotifyService.instance.isLinked) {
-                        // Already linked → import playlists
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (ctx) => AlertDialog(
-                            backgroundColor: const Color(0xFF1A1A1E),
-                            title: Text(
-                              t('Importando Spotify…', 'Importing Spotify…'),
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                CircularProgressIndicator(
-                                    color: Color(0xFF1DB954)),
-                                SizedBox(height: 14),
-                                Text(
-                                  'Liked Songs y playlists…',
-                                  style: TextStyle(
-                                      color: Colors.white70, fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                        final n =
-                            await SpotifyService.instance.importAllPlaylists();
-                        if (context.mounted) {
-                          Navigator.of(context, rootNavigator: true).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(t('Importadas $n playlists',
-                                  'Imported $n playlists')),
-                              backgroundColor: const Color(0xFF1DB954),
-                            ),
-                          );
-                          setState(() {});
-                        }
+                        await _importSpotifyWithPicker(context);
+                        if (context.mounted) setState(() {});
                         return;
                       }
                       final ok = await SpotifyService.instance.connect();
                       if (!context.mounted) return;
                       if (ok) {
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (ctx) => AlertDialog(
-                            backgroundColor: const Color(0xFF1A1A1E),
-                            title: Text(
-                              t('Importando Spotify…', 'Importing Spotify…'),
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                CircularProgressIndicator(
-                                    color: Color(0xfffc3c44)),
-                                SizedBox(height: 14),
-                                Text(
-                                  'Liked Songs y playlists…',
-                                  style: TextStyle(
-                                      color: Colors.white70, fontSize: 13),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                        final n =
-                            await SpotifyService.instance.importAllPlaylists();
-                        if (context.mounted) {
-                          Navigator.of(context, rootNavigator: true).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(t('Importadas $n playlists',
-                                  'Imported $n playlists')),
-                              backgroundColor: const Color(0xfffc3c44),
-                            ),
-                          );
-                        }
+                        await _importSpotifyWithPicker(context);
+                        if (context.mounted) setState(() {});
                       } else {
                         final err = SpotifyService.instance.lastError;
                         ScaffoldMessenger.of(context).showSnackBar(
