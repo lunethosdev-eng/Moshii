@@ -129,6 +129,11 @@ class PlayerController extends ChangeNotifier {
     if (_advancing || queue.isEmpty) return;
     _advancing = true;
     try {
+      // Single-song queue → expand so auto-next has real next tracks
+      if (queue.length < 2 && currentSong != null) {
+        await _expandQueueAround(currentSong!);
+      }
+      if (queue.isEmpty) return;
       final nextIdx = (queueIndex + 1) % queue.length;
       queueIndex = nextIdx;
       final next = queue[nextIdx];
