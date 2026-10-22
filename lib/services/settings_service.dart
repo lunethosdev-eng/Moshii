@@ -71,6 +71,15 @@ class SettingsService extends ChangeNotifier {
   /// compact | normal | dense
   String homeCardDensity = 'normal';
 
+  // ── Beta / experimental ───────────────────────────────────────────
+  bool betaAiLyricsTranslate = false;
+  bool betaAiKaraokeSync = true;
+  bool betaNavCollapseOnScroll = true;
+  bool betaPlayerBlurDismiss = true;
+  bool betaSmartQueue = true;
+  String betaGroqKey = '';
+  String betaOpenRouterKey = '';
+
   static const catalog = <Map<String, String>>[
     {'id': 'ui_liquid_glass', 'cat': 'appearance', 'es': 'Liquid Glass', 'en': 'Liquid Glass'},
     {'id': 'ui_amoled', 'cat': 'appearance', 'es': 'Tema AMOLED', 'en': 'AMOLED theme'},
@@ -90,6 +99,10 @@ class SettingsService extends ChangeNotifier {
     {'id': 'pl_numbers', 'cat': 'playlist', 'es': 'Numeración en playlists', 'en': 'Playlist numbers'},
     {'id': 'pl_drag', 'cat': 'playlist', 'es': 'Asas de arrastre', 'en': 'Drag handles'},
     {'id': 'play_karaoke', 'cat': 'playback', 'es': 'Karaoke', 'en': 'Karaoke'},
+    {'id': 'beta_ai', 'cat': 'beta', 'es': 'IA (traducción / karaoke)', 'en': 'AI (translate / karaoke)'},
+    {'id': 'beta_nav_collapse', 'cat': 'beta', 'es': 'Nav colapsa al scroll', 'en': 'Collapse nav on scroll'},
+    {'id': 'beta_player_blur', 'cat': 'beta', 'es': 'Dismiss con blur progresivo', 'en': 'Progressive blur dismiss'},
+    {'id': 'beta_smart_queue', 'cat': 'beta', 'es': 'Cola inteligente auto', 'en': 'Smart auto queue'},
   ];
 
   final Map<String, bool> flags = {};
@@ -140,6 +153,14 @@ class SettingsService extends ChangeNotifier {
     navBubble = p.getBool('nav_bubble') ?? true;
     homeCardDensity = p.getString('home_density') ?? 'normal';
 
+    betaAiLyricsTranslate = p.getBool('beta_ai_translate') ?? false;
+    betaAiKaraokeSync = p.getBool('beta_ai_karaoke') ?? true;
+    betaNavCollapseOnScroll = p.getBool('beta_nav_collapse') ?? true;
+    betaPlayerBlurDismiss = p.getBool('beta_player_blur') ?? true;
+    betaSmartQueue = p.getBool('beta_smart_queue') ?? true;
+    betaGroqKey = p.getString('beta_groq_key') ?? '';
+    betaOpenRouterKey = p.getString('beta_or_key') ?? '';
+
     for (final item in catalog) {
       final id = item['id']!;
       flags[id] = p.getBool('flag_$id') ?? _defaultFor(id);
@@ -162,6 +183,10 @@ class SettingsService extends ChangeNotifier {
     flags['pl_numbers'] = playlistShowNumbers;
     flags['pl_drag'] = playlistDragHandles;
     flags['play_karaoke'] = karaokeOn;
+    flags['beta_ai'] = betaAiLyricsTranslate || betaAiKaraokeSync;
+    flags['beta_nav_collapse'] = betaNavCollapseOnScroll;
+    flags['beta_player_blur'] = betaPlayerBlurDismiss;
+    flags['beta_smart_queue'] = betaSmartQueue;
   }
 
   bool _defaultFor(String id) {
@@ -181,6 +206,10 @@ class SettingsService extends ChangeNotifier {
       'pl_numbers',
       'pl_drag',
       'play_karaoke',
+      'beta_ai',
+      'beta_nav_collapse',
+      'beta_player_blur',
+      'beta_smart_queue',
     };
     return on.contains(id);
   }
@@ -241,6 +270,19 @@ class SettingsService extends ChangeNotifier {
         break;
       case 'play_karaoke':
         karaokeOn = v;
+        break;
+      case 'beta_ai':
+        betaAiLyricsTranslate = v;
+        betaAiKaraokeSync = v;
+        break;
+      case 'beta_nav_collapse':
+        betaNavCollapseOnScroll = v;
+        break;
+      case 'beta_player_blur':
+        betaPlayerBlurDismiss = v;
+        break;
+      case 'beta_smart_queue':
+        betaSmartQueue = v;
         break;
     }
     await save();
@@ -343,6 +385,14 @@ class SettingsService extends ChangeNotifier {
     await p.setBool('nav_labels', navLabels);
     await p.setBool('nav_bubble', navBubble);
     await p.setString('home_density', homeCardDensity);
+
+    await p.setBool('beta_ai_translate', betaAiLyricsTranslate);
+    await p.setBool('beta_ai_karaoke', betaAiKaraokeSync);
+    await p.setBool('beta_nav_collapse', betaNavCollapseOnScroll);
+    await p.setBool('beta_player_blur', betaPlayerBlurDismiss);
+    await p.setBool('beta_smart_queue', betaSmartQueue);
+    await p.setString('beta_groq_key', betaGroqKey);
+    await p.setString('beta_or_key', betaOpenRouterKey);
 
     for (final e in flags.entries) {
       await p.setBool('flag_${e.key}', e.value);
