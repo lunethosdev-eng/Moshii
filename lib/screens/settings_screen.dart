@@ -520,6 +520,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
               ),
+              // ── BETA ─────────────────────────────────────────
+              _section(t('Beta / experimental', 'Beta / experimental')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('IA (traducir / karaoke)', 'AI (translate / karaoke)'),
+                          style: const TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        t('Traducción de letras y sync de karaoke',
+                            'Lyrics translation & karaoke sync'),
+                        style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12),
+                      ),
+                      value: s.flag('beta_ai', def: true),
+                      onChanged: (v) => s.setFlag('beta_ai', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Nav colapsa al scroll', 'Collapse nav on scroll'),
+                          style: const TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        t('Home+Library cortos y Search se separa',
+                            'Short Home+Library, Search peels off'),
+                        style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12),
+                      ),
+                      value: s.flag('beta_nav_collapse', def: true),
+                      onChanged: (v) => s.setFlag('beta_nav_collapse', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Dismiss con blur', 'Blur dismiss'),
+                          style: const TextStyle(color: Colors.white)),
+                      subtitle: Text(
+                        t('Al bajar el full player se ve el home',
+                            'Pulling down full player reveals home'),
+                        style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12),
+                      ),
+                      value: s.flag('beta_player_blur', def: true),
+                      onChanged: (v) => s.setFlag('beta_player_blur', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Cola inteligente', 'Smart queue'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.flag('beta_smart_queue', def: true),
+                      onChanged: (v) => s.setFlag('beta_smart_queue', v),
+                    ),
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Etiquetas del nav', 'Nav labels'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.flag('nav_labels', def: true),
+                      onChanged: (v) => s.setFlag('nav_labels', v),
+                    ),
+                  ],
+                ),
+              ),
+
               const SizedBox(height: 24),
               Center(
                 child: Text('pokke · 1.0.0',
