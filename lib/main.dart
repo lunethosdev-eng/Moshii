@@ -7,7 +7,6 @@ import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/spotify_service.dart';
 import 'package:pokke/services/player_controller.dart';
-import 'package:pokke/services/ai_service.dart';
 import 'package:app_links/app_links.dart';
 import 'package:pokke/screens/auth_screen.dart';
 import 'package:pokke/screens/welcome_screen.dart';
@@ -98,7 +97,6 @@ class _PokkeAppState extends State<PokkeApp> {
         '/artist': (context) => ArtistPage(),
         '/artistlist': (context) => ArtistList(),
         '/musiclist': (context) => MusicList(),
-        '/player': (context) => MusicPlayer(),
         '/profile_edit': (context) => const ProfileEditScreen(),
         '/admin': (context) => const AdminScreen(),
         '/settings': (context) => const SettingsScreen(),
@@ -106,6 +104,15 @@ class _PokkeAppState extends State<PokkeApp> {
         '/player_editor': (context) => const PlayerLayoutEditorScreen(),
         '/playlists': (context) => const PlaylistsScreen(),
         '/wrap': (context) => const WrapScreen(),
+      },
+      // Full player always uses slide-up + fade (never default Material popup)
+      onGenerateRoute: (settings) {
+        if (settings.name == '/player') {
+          final args = settings.arguments;
+          final song = args is Map<String, dynamic> ? args : <String, dynamic>{};
+          return MusicPlayer.route(song);
+        }
+        return null;
       },
     );
   }
