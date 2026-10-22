@@ -7,6 +7,7 @@ import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/spotify_service.dart';
 import 'package:pokke/services/player_controller.dart';
+import 'package:pokke/services/ai_service.dart';
 import 'package:app_links/app_links.dart';
 import 'package:pokke/screens/auth_screen.dart';
 import 'package:pokke/screens/welcome_screen.dart';
