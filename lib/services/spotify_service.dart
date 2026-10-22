@@ -358,6 +358,15 @@ class SpotifyService {
       if (res.statusCode == 401 || res.statusCode == 403) {
         lastError =
             'playlists_${res.statusCode}: vuelve a conectar Spotify (permisos)';
+        // Clear tokens so next connect re-requests playlist scopes
+        accessToken = null;
+        refreshToken = null;
+        try {
+          final p = await SharedPreferences.getInstance();
+          await p.remove('spotify_access');
+          await p.remove('spotify_refresh');
+          await p.remove('spotify_expires');
+        } catch (_) {}
         break;
       }
       if (res.statusCode != 200) {
