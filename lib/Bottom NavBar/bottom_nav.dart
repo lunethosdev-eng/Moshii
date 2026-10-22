@@ -251,25 +251,27 @@ class _LiquidBubblePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
-    final baseR = size.shortestSide * 0.42;
+    // More oval / egg-like (less perfectly round)
+    final baseRx = size.width * 0.38;
+    final baseRy = size.height * 0.40;
 
-    // Stretch amount from velocity
-    final stretch = (velocity.abs() / 22.0).clamp(0.0, 1.0);
-    // Direction: when moving right, lag is left (negative bias)
+    // Deform even on slow moves — floor stretch so micro velocity still shapes
+    final speed = velocity.abs();
+    final stretch = (0.14 + (speed / 18.0) * 0.86).clamp(0.14, 1.0);
     final dir = velocity >= 0 ? -1.0 : 1.0;
 
     final path = Path();
-    const steps = 48;
+    const steps = 56;
     for (int i = 0; i <= steps; i++) {
       final t = i / steps * math.pi * 2;
-      // Elliptical base stretched along X based on speed
-      final rx = baseR * (1 + stretch * 0.35);
-      final ry = baseR * (1 - stretch * 0.18);
-      // Extra bulge opposite to velocity (inertia)
-      final lag = math.cos(t) * dir * stretch * baseR * 0.45;
-      final wave = math.sin(t * 2) * stretch * 2.2;
+      // Slight egg: narrower near top
+      final egg = 1.0 + 0.09 * math.sin(t - math.pi / 2);
+      final rx = baseRx * egg * (1 + stretch * 0.42);
+      final ry = baseRy * egg * (1 - stretch * 0.22);
+      final lag = math.cos(t) * dir * stretch * baseRx * 0.38;
+      final wave = math.sin(t * 2.2) * stretch * 1.6;
       final x = cx + rx * math.cos(t) + lag;
-      final y = cy + ry * math.sin(t) + wave * 0.4;
+      final y = cy + ry * math.sin(t) + wave * 0.35;
       if (i == 0) {
         path.moveTo(x, y);
       } else {
@@ -280,47 +282,43 @@ class _LiquidBubblePainter extends CustomPainter {
 
     final rect = Offset.zero & size;
 
-    // Soft shadow
     canvas.drawPath(
       path.shift(const Offset(0, 2)),
       Paint()
-        ..color = Colors.black.withOpacity(0.25)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+        ..color = Colors.black.withOpacity(0.22)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
     );
 
-    // Glass body
+    // Cleaner fill — softer gradient, no red tint
     final fill = Paint()
       ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
         colors: [
-          Colors.white.withOpacity(0.32),
-          Colors.white.withOpacity(0.12),
-          const Color(0xfffc3c44).withOpacity(0.10),
+          Colors.white.withOpacity(0.28),
+          Colors.white.withOpacity(0.14),
         ],
       ).createShader(rect);
     canvas.drawPath(path, fill);
 
-    // Border
     canvas.drawPath(
       path,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..color = Colors.white.withOpacity(0.5),
+        ..strokeWidth = 1.0
+        ..color = Colors.white.withOpacity(0.48),
     );
 
-    // Specular
     canvas.save();
     canvas.clipPath(path);
     canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, size.height * 0.42),
+      Rect.fromLTWH(0, 0, size.width, size.height * 0.38),
       Paint()
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Colors.white.withOpacity(0.5),
+            Colors.white.withOpacity(0.42),
             Colors.white.withOpacity(0.0),
           ],
         ).createShader(rect),
