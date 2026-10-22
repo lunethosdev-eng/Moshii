@@ -29,8 +29,6 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
   double _prevX = 0;
   String? _headphoneDevice;
 
-  /// When true (scrolling + mini player visible): nav collapses.
-  /// Keeps Home / Library in the bar, Search detaches as a side bubble.
   bool _navCollapsed = false;
   late AnimationController _collapseCtrl;
   late AnimationController _bubbleCtrl;
@@ -54,7 +52,6 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
 
   final List<String> _labels = ['Home', 'Browse', 'Radio', 'Library', 'Search'];
 
-  // Indices that stay in the collapsed bar (Home, Library). Search is separate.
   static const _collapsedMain = [0, 3]; // Home, Library
   static const _searchIdx = 4;
 
@@ -67,7 +64,7 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
         CurvedAnimation(parent: _bubbleCtrl, curve: Curves.easeOutBack);
     _collapseCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 340),
+      duration: const Duration(milliseconds: 380),
     );
     HeadphoneService.instance.start();
     HeadphoneService.instance.onConnected.listen((name) {
@@ -160,7 +157,7 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
     return (x / itemW).floor().clamp(0, 4);
   }
 
-  Widget _navItem(int i, {bool compact = false}) {
+  Widget _navItem(int i, {bool compact = false, bool showLabel = true}) {
     final selected = i == _selectedIndex;
     final hovering = _isDragging && i == _hoverIndex;
     final active = selected || hovering;
@@ -181,12 +178,12 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
                   ? const Color(0xfffc3c44)
                   : Colors.white.withOpacity(0.88),
             ),
-            if (!compact) ...[
+            if (showLabel) ...[
               const SizedBox(height: 2),
               Text(
                 _labels[i],
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: compact ? 9 : 10,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                   color: active
                       ? const Color(0xfffc3c44)
@@ -202,6 +199,9 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final showLabels = SettingsService.instance.navLabels &&
+        SettingsService.instance.flag('nav_labels', def: true);
+
     return Stack(
       children: [
         Scaffold(
@@ -211,40 +211,50 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
             child: Stack(
               children: [
                 _pages[_selectedIndex],
-                // Mini player — shrinks when nav is collapsed
+                // More gap between mini player and nav
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: _navCollapsed ? 78 : 90,
+                  bottom: _navCollapsed ? 86 : 100,
                   child: MiniPlayer(compact: _navCollapsed),
                 ),
               ],
             ),
           ),
           bottomNavigationBar: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
             child: AnimatedBuilder(
               animation: _collapseCtrl,
               builder: (context, _) {
                 final t = Curves.easeInOutCubic.transform(_collapseCtrl.value);
                 return LayoutBuilder(
                   builder: (context, constraints) {
-                    final barH = 64.0 - 8.0 * t;
                     final fullW = constraints.maxWidth;
-                    // Main bar width shrinks as Search detaches
-                    final mainW = fullW - (72.0 * t);
-                    final searchGap = 10.0 * t;
-                    final searchX = mainW + searchGap;
+                    final barH = showLabels ? (62.0 - 4 * t) : (56.0 - 2 * t);
+
+                    // Collapsed: short pill centered for Home+Library (~46% width)
+                    // Search peels off from the RIGHT edge of that pill (not screen edge)
+                    final collapsedMainW = fullW * 0.46;
+                    final expandedMainW = fullW;
+                    final mainW = expandedMainW + (collapsedMainW - expandedMainW) * t;
+                    final mainLeft = (fullW - mainW) / 2 * t; // centers as it shrinks
+
+                    // Search starts OVER the right side of the bar and slides out a little
+                    final searchSize = 52.0;
+                    final searchLeft = mainLeft + mainW - searchSize * (1 - t) - 4 * t;
+                    // When fully detached: just to the right of the short pill with small gap
+                    final searchLeftDetached = mainLeft + mainW + 8;
+                    final searchX = searchLeft + (searchLeftDetached - searchLeft) * t;
 
                     return SizedBox(
-                      height: barH + 4,
+                      height: barH + 6,
+                      width: fullW,
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
                           // ── Main glass bar ──────────────────────────
-                          AnimatedPositioned(
-                            duration: Duration.zero,
-                            left: 0,
+                          Positioned(
+                            left: mainLeft,
                             width: mainW,
                             top: 0,
                             child: GestureDetector(
@@ -256,58 +266,86 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
                               child: LiquidGlass(
                                 blur: 34,
                                 opacity: 0.14,
-                                borderRadius: BorderRadius.circular(32 - 4 * t),
+                                borderRadius:
+                                    BorderRadius.circular(28 - 2 * t),
                                 borderWidth: 0.85,
                                 enableSpecular: true,
                                 elevation: 10,
                                 child: SizedBox(
                                   height: barH,
                                   child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
                                     children: _navCollapsed
                                         ? [
-                                            // Only Home + Library when collapsed
                                             for (final i in _collapsedMain)
-                                              _navItem(i, compact: true),
+                                              _navItem(i,
+                                                  compact: true,
+                                                  showLabel: showLabels),
                                           ]
                                         : List.generate(
-                                            5, (i) => _navItem(i)),
+                                            5,
+                                            (i) => _navItem(i,
+                                                showLabel: showLabels),
+                                          ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
 
-                          // ── Detached Search bubble ──────────────────
-                          // Slides out from the right edge of the bar
-                          if (t > 0.02)
+                          // ── Search bubble — peels from nav, not screen edge ──
+                          if (t > 0.01)
                             Positioned(
                               left: searchX,
-                              top: 0,
+                              top: (barH - searchSize) / 2,
                               child: Opacity(
-                                opacity: t.clamp(0.0, 1.0),
+                                opacity: Curves.easeOut.transform(t),
                                 child: Transform.scale(
-                                  scale: 0.85 + 0.15 * t,
+                                  scale: 0.72 + 0.28 * t,
                                   child: GestureDetector(
                                     onTap: () {
                                       HapticFeedback.lightImpact();
-                                      setState(() => _selectedIndex = _searchIdx);
+                                      setState(
+                                          () => _selectedIndex = _searchIdx);
                                     },
                                     child: LiquidGlass(
                                       blur: 28,
                                       opacity: 0.16,
-                                      borderRadius: BorderRadius.circular(28),
+                                      borderRadius:
+                                          BorderRadius.circular(searchSize / 2),
                                       borderWidth: 0.8,
                                       enableSpecular: true,
                                       elevation: 8,
                                       child: SizedBox(
-                                        width: 56,
-                                        height: barH,
-                                        child: Icon(
-                                          Icons.search,
-                                          size: 24,
-                                          color: _selectedIndex == _searchIdx
-                                              ? const Color(0xfffc3c44)
-                                              : Colors.white.withOpacity(0.9),
+                                        width: searchSize,
+                                        height: searchSize,
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.search,
+                                              size: 22,
+                                              color: _selectedIndex ==
+                                                      _searchIdx
+                                                  ? const Color(0xfffc3c44)
+                                                  : Colors.white
+                                                      .withOpacity(0.9),
+                                            ),
+                                            if (showLabels && t > 0.6)
+                                              Text(
+                                                'Search',
+                                                style: TextStyle(
+                                                  fontSize: 8,
+                                                  color: _selectedIndex ==
+                                                          _searchIdx
+                                                      ? const Color(
+                                                          0xfffc3c44)
+                                                      : Colors.white70,
+                                                ),
+                                              ),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -321,8 +359,8 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
                               _isDragging &&
                               _hoverIndex != null)
                             Positioned(
-                              left: (_dragX - 30)
-                                  .clamp(4.0, constraints.maxWidth - 64),
+                              left: mainLeft +
+                                  (_dragX - 30).clamp(4.0, mainW - 64),
                               top: 6,
                               child: ScaleTransition(
                                 scale: _bubbleScale,
@@ -366,8 +404,6 @@ class _FirstPageState extends State<FirstPage> with TickerProviderStateMixin {
   }
 }
 
-/// Bubble that stretches in the direction of movement (liquid inertia).
-/// More oval / egg-like; deforms even at slow velocity.
 class _LiquidBubblePainter extends CustomPainter {
   final double velocity;
 
