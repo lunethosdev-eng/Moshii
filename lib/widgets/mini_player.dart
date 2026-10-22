@@ -11,7 +11,40 @@ class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key, this.compact = false});
 
   void _openFull(BuildContext context, Map<String, dynamic> song) {
-    Navigator.of(context).push(MusicPlayer.route(song));
+    // Always use explicit PageRouteBuilder so we never depend on a missing
+    // MusicPlayer.route static (keeps CI green if files are partially synced).
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 380),
+        reverseTransitionDuration: const Duration(milliseconds: 320),
+        pageBuilder: (_, __, ___) => MusicPlayer(),
+        transitionsBuilder: (_, animation, __, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(curved),
+            child: FadeTransition(
+              opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
+                CurvedAnimation(
+                  parent: animation,
+                  curve: const Interval(0.0, 0.65),
+                ),
+              ),
+              child: child,
+            ),
+          );
+        },
+        settings: RouteSettings(name: '/player', arguments: song),
+      ),
+    );
   }
 
   @override
@@ -22,7 +55,8 @@ class MiniPlayer extends StatelessWidget {
         final pc = PlayerController.instance;
         if (pc.current == null) return const SizedBox.shrink();
         final settings = SettingsService.instance;
-        if (!settings.showMiniPlayer || !settings.flag('ui_mini_player', def: true)) {
+        if (!settings.showMiniPlayer ||
+            !settings.flag('ui_mini_player', def: true)) {
           return const SizedBox.shrink();
         }
 
@@ -62,14 +96,16 @@ class MiniPlayer extends StatelessWidget {
                               height: coverSize,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Container(
-                                  width: coverSize,
-                                  height: coverSize,
-                                  color: Colors.white12),
+                                width: coverSize,
+                                height: coverSize,
+                                color: Colors.white12,
+                              ),
                             )
                           : Container(
                               width: coverSize,
                               height: coverSize,
-                              color: Colors.white12),
+                              color: Colors.white12,
+                            ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
