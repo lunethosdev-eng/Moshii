@@ -10,8 +10,15 @@ class _LrcLine {
 class KaraokeLyrics extends StatelessWidget {
   final String? lrcText;
   final Duration position;
+  /// Multiplier >1 fills faster (upbeat); <1 slower (ballads). From AI or manual.
+  final double fillMultiplier;
 
-  const KaraokeLyrics({super.key, required this.lrcText, required this.position});
+  const KaraokeLyrics({
+    super.key,
+    required this.lrcText,
+    required this.position,
+    this.fillMultiplier = 1.25,
+  });
 
   List<_LrcLine> _parse(String raw) {
     final lines = <_LrcLine>[];
@@ -95,8 +102,9 @@ class KaraokeLyrics extends StatelessWidget {
         : lineStart + const Duration(seconds: 3);
     final lineDur = (lineEnd - lineStart).inMilliseconds.clamp(400, 8000);
     final elapsed = (position - lineStart).inMilliseconds.clamp(0, lineDur);
-    // Slightly accelerated fill (1.35x) so it feels snappy / less delay
-    final fillRatio = ((elapsed / lineDur) * 1.35).clamp(0.0, 1.0);
+    // Adaptive fill — AI/tempo multiplier so it doesn't lag or rush the song
+    final mult = fillMultiplier.clamp(0.7, 1.6);
+    final fillRatio = ((elapsed / lineDur) * mult).clamp(0.0, 1.0);
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
