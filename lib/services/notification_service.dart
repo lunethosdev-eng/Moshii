@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pokke/services/follow_service.dart';
+import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/supabase_service.dart';
 
 /// In-app notifications (followed artists new tracks, etc.).
@@ -12,6 +14,27 @@ class NotificationService extends ChangeNotifier {
   static const _prefsKey = 'pokke_notifications_v1';
   static const _seenKey = 'pokke_seen_song_ids';
 
+  /// id -> asset path
+  static const soundAssets = <String, String>{
+    'message': 'assets/sounds/tone_message.mp3',
+    'joyous': 'assets/sounds/tone_joyous.mp3',
+    'bubble': 'assets/sounds/tone_bubble.mp3',
+    'twinkle': 'assets/sounds/tone_twinkle.mp3',
+    'marimba': 'assets/sounds/tone_marimba.mp3',
+    'chime': 'assets/sounds/tone_chime.mp3',
+  };
+
+  static const soundLabels = <String, Map<String, String>>{
+    'none': {'es': 'Silencio', 'en': 'Silent'},
+    'message': {'es': 'Mensaje', 'en': 'Message'},
+    'joyous': {'es': 'Campanilla alegre', 'en': 'Joyous chime'},
+    'bubble': {'es': 'Burbuja', 'en': 'Bubble pop'},
+    'twinkle': {'es': 'Destello', 'en': 'Twinkle'},
+    'marimba': {'es': 'Marimba', 'en': 'Marimba'},
+    'chime': {'es': 'Campana', 'en': 'Chime'},
+  };
+
+  final AudioPlayer _sfx = AudioPlayer();
   List<Map<String, dynamic>> items = [];
   int unread = 0;
 
@@ -43,13 +66,36 @@ class NotificationService extends ChangeNotifier {
   Future<void> _markSeen(Set<String> ids) async {
     final p = await SharedPreferences.getInstance();
     final all = await _seenSongIds()..addAll(ids);
-    // keep last 800
     final list = all.toList();
     if (list.length > 800) {
       await p.setStringList(_seenKey, list.sublist(list.length - 800));
     } else {
       await p.setStringList(_seenKey, list);
     }
+  }
+
+  /// Preview a tone from Settings.
+  Future<void> previewSound(String id) async {
+    if (id == 'none' || !soundAssets.containsKey(id)) return;
+    try {
+      await _sfx.stop();
+      await _sfx.play(AssetSource(soundAssets[id]!.replaceFirst('assets/', '')));
+    } catch (e) {
+      // AssetSource path is relative to assets/ folder root declared in pubspec
+      try {
+        await _sfx.play(AssetSource('sounds/tone_$id.mp3'));
+      } catch (e2) {
+        debugPrint('previewSound: $e2');
+      }
+    }
+  }
+
+  Future<void> _playNotifSound() async {
+    final s = SettingsService.instance;
+    if (!s.notificationSoundEnabled) return;
+    final id = s.notificationSound;
+    if (id == 'none' || id.isEmpty) return;
+    await previewSound(id);
   }
 
   /// Poll catalog for songs by followed artists that user hasn't "seen".
@@ -76,7 +122,6 @@ class NotificationService extends ChangeNotifier {
             (n) => artist.toLowerCase().contains(n.toLowerCase()));
         if (!match) continue;
 
-        // avoid duplicate notification for same song
         if (items.any((e) => e['song_id']?.toString() == id)) {
           newIds.add(id);
           continue;
@@ -97,9 +142,11 @@ class NotificationService extends ChangeNotifier {
       }
 
       if (newIds.isNotEmpty) await _markSeen(newIds);
-      // cap list
       if (items.length > 100) items = items.take(100).toList();
-      if (added > 0) await _save();
+      if (added > 0) {
+        await _save();
+        await _playNotifSound();
+      }
       return added;
     } catch (e) {
       debugPrint('NotificationService.refresh: $e');
@@ -131,6 +178,7 @@ class NotificationService extends ChangeNotifier {
     required String body,
     String type = 'info',
     Map<String, dynamic>? extra,
+    bool playSound = true,
   }) {
     items.insert(0, {
       'id': 'n_${DateTime.now().millisecondsSinceEpoch}',
@@ -142,5 +190,6 @@ class NotificationService extends ChangeNotifier {
       ...?extra,
     });
     _save();
+    if (playSound) _playNotifSound();
   }
 }
