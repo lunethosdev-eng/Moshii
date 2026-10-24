@@ -18,12 +18,37 @@ class PlayerController extends ChangeNotifier {
     // Prefer media player mode so Android can surface media controls
     unawaited(_playerA.setPlayerMode(PlayerMode.mediaPlayer));
     unawaited(_playerB.setPlayerMode(PlayerMode.mediaPlayer));
+    unawaited(_configureAudioSession());
+  }
+
+  Future<void> _configureAudioSession() async {
+    try {
+      final ctx = AudioContext(
+        android: const AudioContextAndroid(
+          isSpeakerphoneOn: false,
+          audioMode: AndroidAudioMode.normal,
+          stayAwake: true,
+          contentType: AndroidContentType.music,
+          usageType: AndroidUsageType.media,
+          audioFocus: AndroidAudioFocus.gain,
+        ),
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: {AVAudioSessionOptions.mixWithOthers},
+        ),
+      );
+      await AudioPlayer.global.setAudioContext(ctx);
+      await _playerA.setAudioContext(ctx);
+      await _playerB.setAudioContext(ctx);
+    } catch (e) {
+      debugPrint('audio session: $e');
+    }
   }
 
   void _wire(AudioPlayer p, bool isB) {
     p.onPlayerComplete.listen((_) {
       if (_usingB == isB && !_advancing) {
-        unawaited(_advanceToNext());
+        unawaited(_onTrackComplete());
       }
     });
     p.onPositionChanged.listen((pos) {
@@ -59,6 +84,9 @@ class PlayerController extends ChangeNotifier {
   List<Map<String, dynamic>> queue = [];
   int queueIndex = 0;
   bool shuffleMode = false;
+  /// 0 = off, 1 = repeat all, 2 = repeat one
+  int repeatMode = 0;
+  List<Map<String, dynamic>> _originalQueue = [];
 
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
@@ -126,6 +154,76 @@ class PlayerController extends ChangeNotifier {
     }
   }
 
+
+  Future<void> _onTrackComplete() async {
+    if (repeatMode == 2) {
+      try {
+        await _active.seek(Duration.zero);
+        await _active.resume();
+        isPlaying = true;
+        position = Duration.zero;
+        notifyListeners();
+      } catch (e) {
+        debugPrint('repeat one: $e');
+        if (currentSong != null) {
+          await playSong(currentSong!, forceRestart: true);
+        }
+      }
+      return;
+    }
+    if (queue.isEmpty) {
+      isPlaying = false;
+      notifyListeners();
+      return;
+    }
+    final atEnd = queueIndex >= queue.length - 1;
+    if (atEnd && repeatMode == 0) {
+      isPlaying = false;
+      notifyListeners();
+      return;
+    }
+    if (atEnd && repeatMode == 1) {
+      queueIndex = -1;
+    }
+    await _advanceToNext();
+  }
+
+  void toggleShuffle() {
+    shuffleMode = !shuffleMode;
+    if (shuffleMode) {
+      _originalQueue = List<Map<String, dynamic>>.from(queue);
+      final cur = currentSong;
+      if (cur != null) {
+        final rest = queue
+            .where((s) => _songKey(s) != _songKey(cur))
+            .toList()
+          ..shuffle();
+        queue = [cur, ...rest];
+        queueIndex = 0;
+      } else {
+        queue.shuffle();
+      }
+    } else if (_originalQueue.isNotEmpty) {
+      final curKey = currentSong != null ? _songKey(currentSong!) : null;
+      queue = List<Map<String, dynamic>>.from(_originalQueue);
+      if (curKey != null) {
+        final idx = queue.indexWhere((s) => _songKey(s) == curKey);
+        queueIndex = idx >= 0 ? idx : 0;
+      }
+    }
+    _nextReady = false;
+    _preloadedIndex = -1;
+    notifyListeners();
+  }
+
+  void cycleRepeatMode() {
+    repeatMode = (repeatMode + 1) % 3;
+    final mode = repeatMode == 2 ? ReleaseMode.loop : ReleaseMode.release;
+    unawaited(_playerA.setReleaseMode(mode));
+    unawaited(_playerB.setReleaseMode(mode));
+    notifyListeners();
+  }
+
   Future<void> _advanceToNext() async {
     if (_advancing || queue.isEmpty) return;
     _advancing = true;
@@ -145,6 +243,8 @@ class PlayerController extends ChangeNotifier {
         // Instant switch: idle already has the source
         try {
           await _active.stop();
+      await _active.setReleaseMode(
+          repeatMode == 2 ? ReleaseMode.loop : ReleaseMode.release);
         } catch (_) {}
         _usingB = !_usingB;
         _nextReady = false;
