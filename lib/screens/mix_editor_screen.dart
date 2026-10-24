@@ -382,52 +382,56 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
     required double leftFrac,
     required double widthFrac,
     required bool isA,
+    required double parentW,
   }) {
-    return LayoutBuilder(builder: (ctx, box) {
-      final w = box.maxWidth;
-      final left = leftFrac * w;
-      final bw = (widthFrac * w).clamp(40.0, w);
-      return Positioned(
-        left: left,
-        width: bw,
-        top: isA ? 54 : 12,
-        height: 40,
-        child: GestureDetector(
-          onHorizontalDragUpdate: (d) {
-            setState(() {
-              final delta = d.delta.dx / w;
-              if (isA) {
-                _offsetA = (_offsetA + delta).clamp(0.0, 0.6);
-                // moving A also shifts cut relative to visual
-                final maxS = _durA.inSeconds > 10
-                    ? _durA.inSeconds.toDouble()
-                    : 180.0;
-                _cutSec = ((_offsetA + 0.35) * maxS).clamp(3.0, maxS - 2);
-              } else {
-                _offsetB = (_offsetB + delta).clamp(0.0, 0.7);
-              }
-            });
-          },
-          child: CustomPaint(
-            painter: _WavePainter(color: color),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: color.withOpacity(0.35)),
-                color: color.withOpacity(0.06),
-              ),
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.only(left: 8),
-              child: Text(isA ? 'A' : 'B',
-                  style: TextStyle(
-                      color: color.withOpacity(0.9),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800)),
+    final left = leftFrac * parentW;
+    final bw = (widthFrac * parentW).clamp(48.0, parentW);
+    final title = isA
+        ? (trackA?['title']?.toString() ?? 'A')
+        : (trackB?['title']?.toString() ?? 'B');
+    return Positioned(
+      left: left,
+      width: bw,
+      top: isA ? 58 : 10,
+      height: 48,
+      child: GestureDetector(
+        onHorizontalDragUpdate: (d) {
+          setState(() {
+            final delta = d.delta.dx / parentW;
+            if (isA) {
+              _offsetA = (_offsetA + delta).clamp(0.0, 0.6);
+              final maxS = _durA.inSeconds > 10
+                  ? _durA.inSeconds.toDouble()
+                  : 180.0;
+              _cutSec = ((_offsetA + 0.35) * maxS).clamp(3.0, maxS - 2);
+            } else {
+              _offsetB = (_offsetB + delta).clamp(0.0, 0.7);
+            }
+          });
+        },
+        child: CustomPaint(
+          painter: _WavePainter(color: color),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withOpacity(0.55), width: 1.2),
+              color: color.withOpacity(0.18),
+            ),
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              '${isA ? "A" : "B"} · $title',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.95),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800),
             ),
           ),
         ),
-      );
-    });
+      ),
+    );
   }
 
   @override
@@ -488,6 +492,8 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white.withOpacity(0.08)),
             ),
+            child: SizedBox(
+            height: 120,
             child: LayoutBuilder(
               builder: (ctx, box) {
                 final w = box.maxWidth;
@@ -519,19 +525,22 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
                         );
                       }),
                       // Track B block (top)
-                      _waveLane(
-                        color: const Color(0xfffc3c44),
-                        leftFrac: _offsetB,
-                        widthFrac: 0.55,
-                        isA: false,
-                      ),
-                      // Track A block (bottom)
-                      _waveLane(
-                        color: Colors.white70,
-                        leftFrac: _offsetA,
-                        widthFrac: 0.6,
-                        isA: true,
-                      ),
+                      if (trackB != null)
+                        _waveLane(
+                          color: const Color(0xfffc3c44),
+                          leftFrac: _offsetB,
+                          widthFrac: 0.55,
+                          isA: false,
+                          parentW: w,
+                        ),
+                      if (trackA != null)
+                        _waveLane(
+                          color: Colors.white70,
+                          leftFrac: _offsetA,
+                          widthFrac: 0.6,
+                          isA: true,
+                          parentW: w,
+                        ),
                       // Crossfade veil
                       Positioned(
                         left: cutFrac * w,
@@ -602,6 +611,7 @@ class _MixEditorScreenState extends State<MixEditorScreen> {
                   ),
                 );
               },
+            ),
             ),
           ),
           const SizedBox(height: 20),
