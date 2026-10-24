@@ -43,7 +43,7 @@ class AiService {
             {
               'role': 'system',
               'content':
-                  'You are a music lyrics translator. Preserve LRC timestamps [mm:ss.xx] exactly if present. Translate only the lyric text to $targetLang. Keep line structure. No commentary.',
+                  'Translate lyrics to the user language. For each line: original, then a line starting with "· " for translation. Keep [mm:ss.xx] on originals. No commentary.',
             },
             {'role': 'user', 'content': lyrics},
           ],
