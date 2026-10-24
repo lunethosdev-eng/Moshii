@@ -188,35 +188,7 @@ class _HomePageState extends State<HomePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                          child: Row(
-                            children: [
-                              const Spacer(),
-                              AnimatedBuilder(
-                                animation: NotificationService.instance,
-                                builder: (context, _) {
-                                  final u = NotificationService.instance.unread;
-                                  return IconButton(
-                                    tooltip: t('Notificaciones', 'Notifications'),
-                                    onPressed: () => Navigator.pushNamed(
-                                        context, '/notifications'),
-                                    icon: Badge(
-                                      isLabelVisible: u > 0,
-                                      label: Text('$u',
-                                          style: const TextStyle(fontSize: 10)),
-                                      backgroundColor: const Color(0xfffc3c44),
-                                      child: const Icon(
-                                          Icons.notifications_outlined,
-                                          color: Colors.white70),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_recent.isNotEmpty) ...[
+                                                if (_recent.isNotEmpty) ...[
                           _sectionTitle(t('Escuchado recientemente', 'Recently played')),
                           _hList(_recent),
                           const SizedBox(height: 18),
