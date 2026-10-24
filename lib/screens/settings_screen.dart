@@ -25,7 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       SettingsService.instance.locale == 'en' ? en : es;
 
   String _spotifyErrorText() {
-    final err = SpotifyService.instance.lastError;
+    final err = SpotifyService.instance.friendlyError.isNotEmpty ? SpotifyService.instance.friendlyError : (SpotifyService.instance.lastError ?? "");
     if (err == null || err.isEmpty) {
       return t(
         'No se pudo conectar. Revisa Client ID y redirect pokke://spotify-callback en Spotify Dashboard',
@@ -42,7 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final lists = await SpotifyService.instance.fetchPlaylists();
     if (!mounted) return;
     if (lists.isEmpty) {
-      final err = SpotifyService.instance.lastError;
+      final err = SpotifyService.instance.friendlyError.isNotEmpty ? SpotifyService.instance.friendlyError : (SpotifyService.instance.lastError ?? "");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -424,7 +424,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         await _importSpotifyWithPicker(context);
                         if (context.mounted) setState(() {});
                       } else {
-                        final err = SpotifyService.instance.lastError;
+                        final err = SpotifyService.instance.friendlyError.isNotEmpty ? SpotifyService.instance.friendlyError : (SpotifyService.instance.lastError ?? "");
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
