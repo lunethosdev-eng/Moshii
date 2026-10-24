@@ -138,6 +138,66 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     ));
   }
 
+
+  Widget _applyEffect(Widget child) {
+    switch (_effect) {
+      case 'glass':
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              child,
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.18)),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(0.12),
+                          Colors.white.withOpacity(0.02),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      case 'glow':
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: (_themes[_theme] ?? _themes['default']!).last
+                    .withOpacity(0.55),
+                blurRadius: 28,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      case 'parallax':
+        return Transform(
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.001)
+            ..rotateX(-0.04)
+            ..rotateY(0.03),
+          alignment: Alignment.center,
+          child: child,
+        );
+      default:
+        return child;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = _themes[_theme] ?? _themes['default']!;
@@ -185,7 +245,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               // Banner
               GestureDetector(
                 onTap: () => _pickMedia(isAvatar: false),
-                child: Stack(
+                child: _applyEffect(Stack(
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
@@ -219,7 +279,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       ),
                     ),
                   ],
-                ),
+                )),
               ),
               const SizedBox(height: 12),
               Center(
