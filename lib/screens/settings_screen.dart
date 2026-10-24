@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pokke/services/settings_service.dart';
+import 'package:pokke/services/notification_service.dart';
 import 'package:pokke/services/audio_cache_service.dart';
 import 'package:pokke/services/spotify_service.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
@@ -520,6 +521,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
               ),
+              _section(t('Notificaciones', 'Notifications')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      activeColor: const Color(0xfffc3c44),
+                      title: Text(t('Sonido de notificación', 'Notification sound'),
+                          style: const TextStyle(color: Colors.white)),
+                      value: s.notificationSoundEnabled,
+                      onChanged: (v) async {
+                        s.notificationSoundEnabled = v;
+                        await s.save();
+                      },
+                    ),
+                    ...['none', 'message', 'joyous', 'bubble', 'twinkle', 'marimba', 'chime'].map((id) {
+                      final labels = NotificationService.soundLabels[id] ?? {'es': id, 'en': id};
+                      final label = s.locale == 'en' ? labels['en']! : labels['es']!;
+                      return RadioListTile<String>(
+                        value: id,
+                        groupValue: s.notificationSound,
+                        activeColor: const Color(0xfffc3c44),
+                        title: Text(label, style: const TextStyle(color: Colors.white)),
+                        secondary: id == 'none'
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.play_arrow, color: Colors.white54),
+                                onPressed: () => NotificationService.instance.previewSound(id),
+                              ),
+                        onChanged: (v) async {
+                          if (v == null) return;
+                          s.notificationSound = v;
+                          await s.save();
+                          if (v != 'none') {
+                            await NotificationService.instance.previewSound(v);
+                          }
+                        },
+                      );
+                    }),
+                  ],
+                ),
+              ),
+
               // ── BETA ─────────────────────────────────────────
               _section(t('Beta / experimental', 'Beta / experimental')),
               LiquidGlass(
