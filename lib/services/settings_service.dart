@@ -16,6 +16,7 @@ class SettingsService extends ChangeNotifier {
   String locale = 'es';
   String playerFont = 'default';
   String profileTheme = 'default';
+  String profileFrame = 'none';
   String profileEffect = 'glass'; // none | glass | parallax | glow
 
   // Privacy / playback
@@ -124,6 +125,7 @@ class SettingsService extends ChangeNotifier {
     playerFont = p.getString('player_font') ?? 'default';
     profileTheme = p.getString('profile_theme') ?? 'default';
     profileEffect = p.getString('profile_effect') ?? 'glass';
+    profileFrame = p.getString('profile_frame') ?? 'none';
     historyLocal = p.getBool('history_local') ?? true;
     profilePublic = p.getBool('profile_public') ?? true;
     downloadsWifiOnly = p.getBool('dl_wifi') ?? true;
@@ -363,6 +365,7 @@ class SettingsService extends ChangeNotifier {
     await p.setString('player_font', playerFont);
     await p.setString('profile_theme', profileTheme);
     await p.setString('profile_effect', profileEffect);
+    await p.setString('profile_frame', profileFrame);
     await p.setBool('history_local', historyLocal);
     await p.setBool('profile_public', profilePublic);
     await p.setBool('dl_wifi', downloadsWifiOnly);
