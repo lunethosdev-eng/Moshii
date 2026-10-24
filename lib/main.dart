@@ -42,7 +42,7 @@ void main() async {
   await SupabaseService.init();
   await SettingsService.instance.load();
   await ListeningHistory.instance.load();
-  await SpotifyService.instance.load();
+  // Spotify disabled (no Premium)
   await PlayerController.instance.restoreSession();
   await LocalMusicService.instance.load();
   await NotificationService.instance.load();
