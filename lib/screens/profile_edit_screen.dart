@@ -34,7 +34,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     'violet': [const Color(0xFF1A0A2E), const Color(0xFF9B59B6)],
     'mint': [const Color(0xFF0A1F1A), const Color(0xFF2ECC71)],
     'gold': [const Color(0xFF1A1508), const Color(0xFFD4AF37)],
+    'rose': [const Color(0xFF1A0A12), const Color(0xFFE91E63)],
+    'cyber': [const Color(0xFF050510), const Color(0xFF00E5FF)],
+    'ember': [const Color(0xFF1A0C05), const Color(0xFFFF6D00)],
   };
+  String _effect = 'glass';
+  final _effects = const ['none', 'glass', 'parallax', 'glow'];
 
   String t(String es, String en) => SettingsService.instance.locale == 'en' ? en : es;
 
@@ -54,6 +59,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       _theme = profile['theme']?.toString()
           ?? SettingsService.instance.profileTheme
           ?? 'default';
+      _effect = profile['effect']?.toString()
+          ?? SettingsService.instance.profileEffect
+          ?? 'glass';
     }
     setState(() => _loading = false);
   }
@@ -98,10 +106,12 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       );
       // theme column best-effort
       SettingsService.instance.profileTheme = _theme;
+      SettingsService.instance.profileEffect = _effect;
       await SettingsService.instance.save();
       try {
         await SupabaseService.kokoro.from('profiles').update({
           'theme': _theme,
+          'effect': _effect,
         }).eq('id', SupabaseService.currentUser!.id);
       } catch (_) {}
       if (mounted) {
@@ -273,6 +283,33 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                     );
                   }).toList(),
                 ),
+              ),
+              const SizedBox(height: 18),
+              Text(t('Efecto del perfil', 'Profile effect'),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _effects.map((e) {
+                  final selected = _effect == e;
+                  final labels = {
+                    'none': t('Ninguno', 'None'),
+                    'glass': 'Glass',
+                    'parallax': 'Parallax',
+                    'glow': 'Glow',
+                  };
+                  return ChoiceChip(
+                    label: Text(labels[e] ?? e),
+                    selected: selected,
+                    selectedColor: const Color(0xfffc3c44),
+                    labelStyle: TextStyle(
+                        color: selected ? Colors.white : Colors.white70,
+                        fontWeight: FontWeight.w600),
+                    backgroundColor: Colors.white10,
+                    onSelected: (_) => setState(() => _effect = e),
+                  );
+                }).toList(),
               ),
               const SizedBox(height: 16),
               LiquidGlass(
