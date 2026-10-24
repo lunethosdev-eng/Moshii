@@ -66,6 +66,10 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
   bool _following = false;
   Map<String, dynamic>? _song;
   String? _lyrics;
+  String? _translatedLyrics;
+  bool _showTranslation = false;
+  bool _translating = false;
+  String? _boundSongKey;
   bool _loadingLyrics = false;
   double _dragDy = 0;
   List<Map<String, dynamic>> _queue = [];
@@ -73,6 +77,49 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
   double _karaokeFillMult = 1.2;
 
   String t(String es, String en) => SettingsService.instance.locale == 'en' ? en : es;
+
+
+  String _keyOf(Map<String, dynamic>? s) =>
+      (s?['id'] ?? s?['title'] ?? '').toString();
+
+  void _syncFromController() {
+    final pc = PlayerController.instance;
+    final cur = pc.current;
+    if (cur == null) return;
+    final k = _keyOf(cur);
+    if (k.isEmpty || k == _boundSongKey) return;
+    _boundSongKey = k;
+    _song = Map<String, dynamic>.from(cur);
+    _translatedLyrics = null;
+    _showTranslation = false;
+    _loadLyrics();
+    final artistName = cur['artist']?.toString() ?? '';
+    FollowService.isFollowing(artistName).then((v) {
+      if (mounted) setState(() => _following = v);
+    });
+    _loadArtistImage(artistName);
+  }
+
+  Future<void> _translateLyrics() async {
+    if (_lyrics == null || _lyrics!.trim().isEmpty) return;
+    if (!SettingsService.instance.flag('beta_ai', def: true)) return;
+    setState(() => _translating = true);
+    try {
+      final tr = await AiService.instance.translateLyrics(
+        _lyrics!,
+        targetLang: SettingsService.instance.locale == 'en' ? 'en' : 'es',
+      );
+      if (mounted) {
+        setState(() {
+          _translatedLyrics = tr;
+          _showTranslation = tr != null && tr.isNotEmpty;
+          _translating = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _translating = false);
+    }
+  }
 
   @override
   void initState() {
@@ -1000,16 +1047,21 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     final pc = PlayerController.instance;
-    final title = _song?['title'] ?? pc.current?['title'] ?? 'Unknown';
-    final artist = _song?['artist'] ?? pc.current?['artist'] ?? 'Unknown';
-    final cover = _song?['cover_url'] ?? _song?['animated_cover_url'] ?? pc.current?['cover_url'];
 
     return AnimatedBuilder(
       animation: Listenable.merge([pc, SettingsService.instance]),
       builder: (context, _) {
+        // Keep local UI in sync when queue auto-advances
+        _syncFromController();
+        final song = _song ?? pc.current;
+        final title = song?['title'] ?? 'Unknown';
+        final artist = song?['artist'] ?? 'Unknown';
+        final cover = song?['cover_url'] ?? song?['animated_cover_url'];
         final pos = pc.position;
         final dur = pc.duration.inMilliseconds > 0 ? pc.duration : const Duration(seconds: 1);
         final progress = (pos.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0);
+        _repeatMode = pc.repeatMode;
+        _shuffleOn = pc.shuffleMode;
 
         if (_lyricsMode) {
           return AnimatedBuilder(
@@ -1544,11 +1596,13 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                                         ),
                                         const SizedBox(height: 10),
                                         SizedBox(
-                                          height: 72,
+                                          height: 128,
                                           child: (_lyrics != null &&
                                                   _lyrics!.trim().isNotEmpty)
                                               ? KaraokeLyrics(
-                                                  lrcText: _lyrics,
+                                                  lrcText: (_showTranslation && _translatedLyrics != null)
+                                                      ? _translatedLyrics
+                                                      : _lyrics,
                                                   position: pos,
                                                   fillMultiplier:
                                                       SettingsService.instance
@@ -1787,6 +1841,49 @@ class _RotatingCover extends StatefulWidget {
 class _RotatingCoverState extends State<_RotatingCover>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c;
+
+  String _keyOf(Map<String, dynamic>? s) =>
+      (s?['id'] ?? s?['title'] ?? '').toString();
+
+  void _syncFromController() {
+    final pc = PlayerController.instance;
+    final cur = pc.current;
+    if (cur == null) return;
+    final k = _keyOf(cur);
+    if (k.isEmpty || k == _boundSongKey) return;
+    _boundSongKey = k;
+    _song = Map<String, dynamic>.from(cur);
+    _translatedLyrics = null;
+    _showTranslation = false;
+    _loadLyrics();
+    final artistName = cur['artist']?.toString() ?? '';
+    FollowService.isFollowing(artistName).then((v) {
+      if (mounted) setState(() => _following = v);
+    });
+    _loadArtistImage(artistName);
+  }
+
+  Future<void> _translateLyrics() async {
+    if (_lyrics == null || _lyrics!.trim().isEmpty) return;
+    if (!SettingsService.instance.flag('beta_ai', def: true)) return;
+    setState(() => _translating = true);
+    try {
+      final tr = await AiService.instance.translateLyrics(
+        _lyrics!,
+        targetLang: SettingsService.instance.locale == 'en' ? 'en' : 'es',
+      );
+      if (mounted) {
+        setState(() {
+          _translatedLyrics = tr;
+          _showTranslation = tr != null && tr.isNotEmpty;
+          _translating = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _translating = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
