@@ -40,6 +40,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   };
   String _effect = 'glass';
   final _effects = const ['none', 'glass', 'parallax', 'glow'];
+  final _frames = const ['none', 'ring', 'neon', 'pixel', 'soft'];
+  String _frame = 'none';
 
   String t(String es, String en) => SettingsService.instance.locale == 'en' ? en : es;
 
@@ -62,6 +64,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       _effect = profile['effect']?.toString()
           ?? SettingsService.instance.profileEffect
           ?? 'glass';
+      _frame = profile['frame']?.toString()
+          ?? SettingsService.instance.profileFrame
+          ?? 'none';
     }
     setState(() => _loading = false);
   }
@@ -112,6 +117,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         await SupabaseService.kokoro.from('profiles').update({
           'theme': _theme,
           'effect': _effect,
+          'frame': _frame,
         }).eq('id', SupabaseService.currentUser!.id);
       } catch (_) {}
       if (mounted) {
@@ -380,7 +386,37 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                   controller: _displayNameCtrl,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    labelText: t('Nombre / Nickname', 'Name / Nickname'),
+                    labelText: 
+              Text(t('Marco del avatar', 'Avatar frame'),
+                  style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _frames.map((f) {
+                  final selected = _frame == f;
+                  final labels = {
+                    'none': t('Ninguno', 'None'),
+                    'ring': 'Ring',
+                    'neon': 'Neon',
+                    'pixel': 'Pixel',
+                    'soft': 'Soft',
+                  };
+                  return ChoiceChip(
+                    label: Text(labels[f] ?? f),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _frame = f),
+                    selectedColor: const Color(0xfffc3c44),
+                    labelStyle: TextStyle(
+                      color: selected ? Colors.white : Colors.white70,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    backgroundColor: const Color(0xFF1A1A1E),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              t('Nombre / Nickname', 'Name / Nickname'),
                     labelStyle: TextStyle(color: Colors.white.withOpacity(0.45)),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.all(14),
