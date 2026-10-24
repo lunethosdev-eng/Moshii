@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:pokke/services/notification_service.dart';
+import 'package:pokke/services/settings_service.dart';
 
 class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -118,7 +119,9 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
                           builder: (context, snap) {
                             final avatar =
                                 snap.data?['avatar_url'] as String?;
-                            return CircleAvatar(
+                            final effect =
+                                SettingsService.instance.profileEffect;
+                            Widget av = CircleAvatar(
                               radius: 16,
                               backgroundColor: Colors.white12,
                               backgroundImage: avatar != null &&
@@ -130,6 +133,32 @@ class CompactHeader extends StatelessWidget implements PreferredSizeWidget {
                                       size: 16, color: Colors.white54)
                                   : null,
                             );
+                            if (effect == 'glow') {
+                              av = Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xfffc3c44)
+                                          .withOpacity(0.45),
+                                      blurRadius: 10,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: av,
+                              );
+                            } else if (effect == 'glass') {
+                              av = Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: Colors.white.withOpacity(0.35)),
+                                ),
+                                child: av,
+                              );
+                            }
+                            return av;
                           },
                         ),
                       ),
