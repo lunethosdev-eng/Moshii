@@ -15,6 +15,7 @@ import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/follow_service.dart';
 import 'package:pokke/services/cast_service.dart';
 import 'package:pokke/services/ai_service.dart';
+import 'package:pokke/services/headphone_service.dart';
 import 'package:pokke/screens/playlist_detail_screen.dart';
 import 'package:pokke/screens/mix_editor_screen.dart';
 
@@ -129,6 +130,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
       duration: const Duration(milliseconds: 420),
     );
     _loadQueue();
+    HeadphoneService.instance.start();
   }
 
   Future<void> _loadQueue() async {
@@ -1049,7 +1051,7 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
     final pc = PlayerController.instance;
 
     return AnimatedBuilder(
-      animation: Listenable.merge([pc, SettingsService.instance]),
+      animation: Listenable.merge([pc, SettingsService.instance, HeadphoneService.instance]),
       builder: (context, _) {
         // Keep local UI in sync when queue auto-advances
         _syncFromController();
@@ -1569,9 +1571,81 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
+                                        StreamBuilder<String?>(
+                                          stream: HeadphoneService.instance.onDeviceChanged,
+                                          initialData: HeadphoneService.instance.currentDevice,
+                                          builder: (context, snap) {
+                                            final name = snap.data;
+                                            if (name == null || name.isEmpty) {
+                                              return const SizedBox.shrink();
+                                            }
+                                            final external = HeadphoneService.instance.isExternal ||
+                                                !name.toLowerCase().contains('altavoz') &&
+                                                !name.toLowerCase().contains('speaker');
+                                            if (!external && name.toLowerCase().contains('altavoz')) {
+                                              return const SizedBox.shrink();
+                                            }
+                                            return Padding(
+                                              padding: const EdgeInsets.only(bottom: 12),
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.headphones,
+                                                      size: 18,
+                                                      color: const Color(0xFF1DB954)),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Text(
+                                                      name,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        color: Color(0xFF1DB954),
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 13,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        ),
                                         Row(
                                           children: [
-                                            Text(
+                                            
+                                        // Active audio output (Spotify-style)
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(4, 2, 4, 10),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                HeadphoneService.instance.isExternal
+                                                    ? Icons.headphones
+                                                    : Icons.phone_android,
+                                                size: 18,
+                                                color: HeadphoneService.instance.isExternal
+                                                    ? const Color(0xFF1DB954)
+                                                    : Colors.white54,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  HeadphoneService.instance.displayLabel,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: HeadphoneService.instance.isExternal
+                                                        ? const Color(0xFF1DB954)
+                                                        : Colors.white54,
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+Text(
                                               t('Letras', 'Lyrics'),
                                               style: const TextStyle(
                                                 color: Colors.white,
