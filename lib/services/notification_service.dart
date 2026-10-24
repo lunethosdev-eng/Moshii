@@ -16,12 +16,12 @@ class NotificationService extends ChangeNotifier {
 
   /// id -> asset path
   static const soundAssets = <String, String>{
-    'message': 'assets/sounds/tone_message.mp3',
-    'joyous': 'assets/sounds/tone_joyous.mp3',
-    'bubble': 'assets/sounds/tone_bubble.mp3',
-    'twinkle': 'assets/sounds/tone_twinkle.mp3',
-    'marimba': 'assets/sounds/tone_marimba.mp3',
-    'chime': 'assets/sounds/tone_chime.mp3',
+    'message': 'assets/Sounds/tone_message.mp3',
+    'joyous': 'assets/Sounds/tone_joyous.mp3',
+    'bubble': 'assets/Sounds/tone_bubble.mp3',
+    'twinkle': 'assets/Sounds/tone_twinkle.mp3',
+    'marimba': 'assets/Sounds/tone_marimba.mp3',
+    'chime': 'assets/Sounds/tone_chime.mp3',
   };
 
   static const soundLabels = <String, Map<String, String>>{
@@ -38,14 +38,36 @@ class NotificationService extends ChangeNotifier {
   List<Map<String, dynamic>> items = [];
   int unread = 0;
 
+
+  void _dedupeBySong() {
+    final seen = <String>{};
+    final out = <Map<String, dynamic>>[];
+    for (final e in items) {
+      final sid = e['song_id']?.toString() ?? e['id']?.toString() ?? '';
+      if (sid.isEmpty) {
+        out.add(e);
+        continue;
+      }
+      if (seen.contains(sid)) continue;
+      seen.add(sid);
+      out.add(e);
+    }
+    items = out;
+  }
   Future<void> load() async {
     try {
       final p = await SharedPreferences.getInstance();
       final raw = p.getString(_prefsKey);
       if (raw != null && raw.isNotEmpty) {
         final list = jsonDecode(raw) as List;
-        items = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        items = list.map((e) {
+          final m = Map<String, dynamic>.from(e as Map);
+          // normalize read flag (JSON may restore as bool or string)
+          m['read'] = m['read'] == true || m['read'] == 'true' || m['read'] == 1;
+          return m;
+        }).toList();
       }
+      _dedupeBySong();
       unread = items.where((e) => e['read'] != true).length;
       notifyListeners();
     } catch (_) {}
@@ -77,17 +99,28 @@ class NotificationService extends ChangeNotifier {
   /// Preview a tone from Settings.
   Future<void> previewSound(String id) async {
     if (id == 'none' || !soundAssets.containsKey(id)) return;
+    // Files live under assets/Sounds/ (capital S) in the repo.
+    final candidates = <String>[
+      soundAssets[id]!.replaceFirst('assets/', ''), // Sounds/tone_xxx.mp3
+      'Sounds/tone_$id.mp3',
+      'sounds/tone_$id.mp3',
+    ];
+    await _sfx.stop();
+    // Low-latency mode so tones aren't mixed into media session
     try {
-      await _sfx.stop();
-      await _sfx.play(AssetSource(soundAssets[id]!.replaceFirst('assets/', '')));
-    } catch (e) {
-      // AssetSource path is relative to assets/ folder root declared in pubspec
+      await _sfx.setPlayerMode(PlayerMode.lowLatency);
+      await _sfx.setReleaseMode(ReleaseMode.stop);
+    } catch (_) {}
+    Object? lastErr;
+    for (final path in candidates) {
       try {
-        await _sfx.play(AssetSource('sounds/tone_$id.mp3'));
-      } catch (e2) {
-        debugPrint('previewSound: $e2');
+        await _sfx.play(AssetSource(path));
+        return;
+      } catch (e) {
+        lastErr = e;
       }
     }
+    debugPrint('previewSound failed for $id: $lastErr');
   }
 
   Future<void> _playNotifSound() async {
@@ -155,16 +188,26 @@ class NotificationService extends ChangeNotifier {
   }
 
   Future<void> markRead(String id) async {
+    final seenIds = <String>{};
     for (final e in items) {
-      if (e['id'] == id) e['read'] = true;
+      if (e['id'] == id) {
+        e['read'] = true;
+        final sid = e['song_id']?.toString();
+        if (sid != null && sid.isNotEmpty) seenIds.add(sid);
+      }
     }
+    if (seenIds.isNotEmpty) await _markSeen(seenIds);
     await _save();
   }
 
   Future<void> markAllRead() async {
+    final seenIds = <String>{};
     for (final e in items) {
       e['read'] = true;
+      final sid = e['song_id']?.toString();
+      if (sid != null && sid.isNotEmpty) seenIds.add(sid);
     }
+    if (seenIds.isNotEmpty) await _markSeen(seenIds);
     await _save();
   }
 
