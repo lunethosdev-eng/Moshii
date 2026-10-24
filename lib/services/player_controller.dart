@@ -156,10 +156,15 @@ class PlayerController extends ChangeNotifier {
 
 
   Future<void> _onTrackComplete() async {
+    // Repeat one: never advance
     if (repeatMode == 2) {
       try {
+        await _active.setReleaseMode(ReleaseMode.loop);
         await _active.seek(Duration.zero);
-        await _active.resume();
+        final st = await _active.state;
+        if (st != PlayerState.playing) {
+          await _active.resume();
+        }
         isPlaying = true;
         position = Duration.zero;
         notifyListeners();
@@ -225,6 +230,7 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> _advanceToNext() async {
+    if (repeatMode == 2) return;
     if (_advancing || queue.isEmpty) return;
     _advancing = true;
     try {
