@@ -488,3 +488,91 @@ class _LiquidBubblePainter extends CustomPainter {
   bool shouldRepaint(covariant _LiquidBubblePainter old) =>
       old.velocity != velocity;
 }
+
+
+/// Brief toast when headphones connect (Spotify-style device name).
+class HeadphoneBanner extends StatefulWidget {
+  final String deviceName;
+  final VoidCallback onDone;
+  const HeadphoneBanner({super.key, required this.deviceName, required this.onDone});
+
+  @override
+  State<HeadphoneBanner> createState() => _HeadphoneBannerState();
+}
+
+class _HeadphoneBannerState extends State<HeadphoneBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _c.forward();
+    Future.delayed(const Duration(seconds: 3), () async {
+      if (!mounted) return;
+      await _c.reverse();
+      if (mounted) widget.onDone();
+    });
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      left: 16,
+      right: 16,
+      child: FadeTransition(
+        opacity: _c,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, -0.3), end: Offset.zero)
+              .animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic)),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFF1DB954).withOpacity(0.35)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.headphones, color: Color(0xFF1DB954), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.deviceName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF1DB954),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
