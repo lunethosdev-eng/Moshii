@@ -33,6 +33,29 @@ class SpotifyService {
   String? displayName;
   String? profileImage;
 
+
+  /// Mensaje legible para Settings / snackbars.
+  String get friendlyError {
+    final e = (lastError ?? '').toLowerCase();
+    if (e.isEmpty) return '';
+    if (e.contains('premium')) {
+      return 'Spotify bloqueó el Web API: el owner de la app necesita Premium, o agrega tu usuario en Dashboard → User Management.';
+    }
+    if (e.contains('auth_cancel') || e.contains('canceled') || e.contains('cancelled')) {
+      return 'Login cancelado. Revisa que Redirect URI sea exactamente pokke://spotify-callback y Android package = com.pokke.app';
+    }
+    if (e.contains('timeout')) {
+      return 'Timeout del callback. Confirma Redirect URI y que la app esté en primer plano al volver.';
+    }
+    if (e.contains('state_mismatch')) {
+      return 'State OAuth no coincide. Intenta de nuevo.';
+    }
+    if (e.contains('403')) {
+      return 'Spotify 403: Premium del developer o usuario allowlisted en Development mode.';
+    }
+    return lastError ?? '';
+  }
+
   bool get isLinked =>
       (accessToken != null && accessToken!.isNotEmpty) ||
       (refreshToken != null && refreshToken!.isNotEmpty);
@@ -356,8 +379,9 @@ class SpotifyService {
       });
       debugPrint('spotify playlists ${res.statusCode}: ${res.body.length > 200 ? res.body.substring(0, 200) : res.body}');
       if (res.statusCode == 401 || res.statusCode == 403) {
-        lastError =
-            'playlists_${res.statusCode}: vuelve a conectar Spotify (permisos)';
+        lastError = res.statusCode == 403
+            ? 'spotify_premium_required · La app del Dashboard necesita cuenta Spotify Premium del owner, o usuarios en User Management (Development mode)'
+            : 'playlists_${res.statusCode}: vuelve a conectar Spotify (permisos)';
         // Clear tokens so next connect re-requests playlist scopes
         accessToken = null;
         refreshToken = null;
