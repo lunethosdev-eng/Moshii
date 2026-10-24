@@ -79,6 +79,9 @@ class SettingsService extends ChangeNotifier {
   bool betaSmartQueue = true;
   String betaGroqKey = '';
   String betaOpenRouterKey = '';
+  /// none | message | joyous | bubble | twinkle | marimba | chime
+  String notificationSound = 'chime';
+  bool notificationSoundEnabled = true;
 
   static const catalog = <Map<String, String>>[
     {'id': 'ui_liquid_glass', 'cat': 'appearance', 'es': 'Liquid Glass', 'en': 'Liquid Glass'},
@@ -160,6 +163,8 @@ class SettingsService extends ChangeNotifier {
     betaSmartQueue = p.getBool('beta_smart_queue') ?? true;
     betaGroqKey = p.getString('beta_groq_key') ?? '';
     betaOpenRouterKey = p.getString('beta_or_key') ?? '';
+    notificationSound = p.getString('notif_sound') ?? 'chime';
+    notificationSoundEnabled = p.getBool('notif_sound_on') ?? true;
 
     for (final item in catalog) {
       final id = item['id']!;
@@ -332,6 +337,9 @@ class SettingsService extends ChangeNotifier {
       case 'player_font':
         playerFont = value;
         break;
+      case 'notif_sound':
+        notificationSound = value;
+        break;
       default:
         break;
     }
@@ -393,6 +401,8 @@ class SettingsService extends ChangeNotifier {
     await p.setBool('beta_smart_queue', betaSmartQueue);
     await p.setString('beta_groq_key', betaGroqKey);
     await p.setString('beta_or_key', betaOpenRouterKey);
+    await p.setString('notif_sound', notificationSound);
+    await p.setBool('notif_sound_on', notificationSoundEnabled);
 
     for (final e in flags.entries) {
       await p.setBool('flag_${e.key}', e.value);
