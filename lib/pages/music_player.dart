@@ -1909,6 +1909,7 @@ Text(
 
 }
 
+
 class _RotatingCover extends StatefulWidget {
   final Widget child;
   const _RotatingCover({required this.child});
@@ -1920,61 +1921,30 @@ class _RotatingCoverState extends State<_RotatingCover>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c;
 
-  String _keyOf(Map<String, dynamic>? s) =>
-      (s?['id'] ?? s?['title'] ?? '').toString();
-
-  void _syncFromController() {
-    final pc = PlayerController.instance;
-    final cur = pc.current;
-    if (cur == null) return;
-    final k = _keyOf(cur);
-    if (k.isEmpty || k == _boundSongKey) return;
-    _boundSongKey = k;
-    _song = Map<String, dynamic>.from(cur);
-    _translatedLyrics = null;
-    _showTranslation = false;
-    _loadLyrics();
-    final artistName = cur['artist']?.toString() ?? '';
-    FollowService.isFollowing(artistName).then((v) {
-      if (mounted) setState(() => _following = v);
-    });
-    _loadArtistImage(artistName);
-  }
-
-  Future<void> _translateLyrics() async {
-    if (_lyrics == null || _lyrics!.trim().isEmpty) return;
-    if (!SettingsService.instance.flag('beta_ai', def: true)) return;
-    setState(() => _translating = true);
-    try {
-      final tr = await AiService.instance.translateLyrics(
-        _lyrics!,
-        targetLang: SettingsService.instance.locale == 'en' ? 'en' : 'es',
-      );
-      if (mounted) {
-        setState(() {
-          _translatedLyrics = tr;
-          _showTranslation = tr != null && tr.isNotEmpty;
-          _translating = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _translating = false);
-    }
-  }
-
   @override
   void initState() {
     super.initState();
     _c = AnimationController(vsync: this, duration: const Duration(seconds: 18))
       ..repeat();
   }
+
   @override
   void dispose() {
     _c.dispose();
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) {
-    return RotationTransition(turns: _c, child: widget.child);
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        return Transform.rotate(
+          angle: _c.value * 6.28318530718,
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
   }
 }
