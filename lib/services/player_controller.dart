@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:pokke/services/audio_cache_service.dart';
 import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/settings_service.dart';
+import 'package:pokke/services/local_music_service.dart';
 import 'package:pokke/services/supabase_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -203,11 +204,17 @@ class PlayerController extends ChangeNotifier {
     final id = (song['id'] ?? key).toString();
     final title = (song['title'] ?? '').toString();
     final artist = (song['artist'] ?? '').toString();
-    final url = (song['audio_url'] ?? song['stream_url'] ?? '').toString();
+    final url = (song['audio_url'] ?? song['stream_url'] ?? song['path'] ?? '').toString();
+    final isLocal = song['is_local'] == true ||
+        (url.isNotEmpty && !url.startsWith('http://') && !url.startsWith('https://'));
 
     String? sourcePath =
         await AudioCacheService.instance.localPathForSongId(id);
-    if (sourcePath == null && url.isNotEmpty) {
+    // Local device files / imported paths
+    if (sourcePath == null && isLocal && url.isNotEmpty) {
+      sourcePath = url;
+    }
+    if (sourcePath == null && url.isNotEmpty && !isLocal) {
       unawaited(AudioCacheService.instance.ensureSongCached(
         id: id,
         title: title,
@@ -233,7 +240,16 @@ class PlayerController extends ChangeNotifier {
       if (queue.isEmpty) {
         queue = [song];
         queueIndex = 0;
-        unawaited(_expandQueueAround(song));
+        if (song['is_local'] == true) {
+          final local = LocalMusicService.instance.tracks;
+          if (local.length > 1) {
+            queue = List<Map<String, dynamic>>.from(local);
+            final idx = queue.indexWhere((s) => _songKey(s) == key);
+            queueIndex = idx >= 0 ? idx : 0;
+          }
+        } else {
+          unawaited(_expandQueueAround(song));
+        }
       } else {
         final key = _songKey(song);
         final idx = queue.indexWhere((s) => _songKey(s) == key);
