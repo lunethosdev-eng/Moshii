@@ -7,6 +7,8 @@ import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/spotify_service.dart';
 import 'package:pokke/services/player_controller.dart';
+import 'package:pokke/services/local_music_service.dart';
+import 'package:pokke/services/notification_service.dart';
 import 'package:app_links/app_links.dart';
 import 'package:pokke/screens/auth_screen.dart';
 import 'package:pokke/screens/welcome_screen.dart';
@@ -29,6 +31,8 @@ import 'package:pokke/screens/mix_editor_screen.dart';
 import 'package:pokke/screens/player_layout_editor_screen.dart';
 import 'package:pokke/screens/playlists_screen.dart';
 import 'package:pokke/screens/wrap_screen.dart';
+import 'package:pokke/screens/local_import_screen.dart';
+import 'package:pokke/screens/notifications_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +41,10 @@ void main() async {
   await ListeningHistory.instance.load();
   await SpotifyService.instance.load();
   await PlayerController.instance.restoreSession();
+  await LocalMusicService.instance.load();
+  await NotificationService.instance.load();
+  // background check for followed-artist releases
+  NotificationService.instance.refreshFromFollows();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
@@ -104,6 +112,8 @@ class _PokkeAppState extends State<PokkeApp> {
         '/player_editor': (context) => const PlayerLayoutEditorScreen(),
         '/playlists': (context) => const PlaylistsScreen(),
         '/wrap': (context) => const WrapScreen(),
+        '/local_import': (context) => const LocalImportScreen(),
+        '/notifications': (context) => const NotificationsScreen(),
       },
       // Full player always uses slide-up + fade (never default Material popup)
       onGenerateRoute: (settings) {
