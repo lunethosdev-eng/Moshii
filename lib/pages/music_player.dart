@@ -1436,8 +1436,8 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                               children: [
                                 IconButton(
                                   onPressed: () {
-                                    setState(() => _shuffleOn = !_shuffleOn);
-                                    PlayerController.instance.shuffleMode = _shuffleOn;
+                                    PlayerController.instance.toggleShuffle();
+                                    setState(() => _shuffleOn = PlayerController.instance.shuffleMode);
                                   },
                                   icon: Icon(Icons.shuffle_rounded,
                                       color: _shuffleOn
@@ -1478,7 +1478,8 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                                 IconButton(
                                   onPressed: () {
                                     setState(() {
-                                      _repeatMode = (_repeatMode + 1) % 3;
+                                      PlayerController.instance.cycleRepeatMode();
+                                      _repeatMode = PlayerController.instance.repeatMode;
                                     });
                                   },
                                   icon: Icon(
@@ -1542,25 +1543,41 @@ class _MusicPlayerState extends State<MusicPlayer> with TickerProviderStateMixin
                                           ],
                                         ),
                                         const SizedBox(height: 10),
-                                        Text(
-                                          (_lyricsPreview() ??
-                                              t(
-                                                'Toca para ver letras a pantalla completa',
-                                                'Tap for full-screen lyrics',
-                                              )),
-                                          maxLines: 3,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: Colors.white.withOpacity(0.55),
-                                            height: 1.35,
-                                            fontSize: 13,
-                                          ),
+                                        SizedBox(
+                                          height: 72,
+                                          child: (_lyrics != null &&
+                                                  _lyrics!.trim().isNotEmpty)
+                                              ? KaraokeLyrics(
+                                                  lrcText: _lyrics,
+                                                  position: pos,
+                                                  fillMultiplier:
+                                                      SettingsService.instance
+                                                              .flag('beta_ai',
+                                                                  def: true)
+                                                          ? 1.15
+                                                          : 1.0,
+                                                )
+                                              : Text(
+                                                  t(
+                                                    'Toca para ver letras a pantalla completa',
+                                                    'Tap for full-screen lyrics',
+                                                  ),
+                                                  maxLines: 3,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: Colors.white
+                                                        .withOpacity(0.55),
+                                                    height: 1.35,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
                                         ),
                                       ],
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 22),
                                 Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.all(12),
