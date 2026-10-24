@@ -101,7 +101,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   _menuRow(Icons.person_outline, t('Artistas', 'Artists'),
                       () => Navigator.pushNamed(context, '/artistlist')),
                   _menuRow(
-                    Icons.folder_music_outlined,
+                    Icons.library_music_outlined,
                     t('Música local', 'Local music'),
                     () => Navigator.pushNamed(context, '/local_import'),
                     trailing: localCount > 0
