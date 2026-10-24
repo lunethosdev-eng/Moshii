@@ -34,7 +34,7 @@ class PlayerController extends ChangeNotifier {
         ),
         iOS: AudioContextIOS(
           category: AVAudioSessionCategory.playback,
-          options: {AVAudioSessionOptions.mixWithOthers},
+          options: [AVAudioSessionOptions.mixWithOthers],
         ),
       );
       await AudioPlayer.global.setAudioContext(ctx);
@@ -287,6 +287,16 @@ class PlayerController extends ChangeNotifier {
     _nextReady = false;
     _preloadedIndex = -1;
     await playSong(queue[queueIndex], forceRestart: true);
+  }
+
+  Future<void> seekTo(Duration pos) async {
+    try {
+      await _active.seek(pos);
+      position = pos;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('seekTo: $e');
+    }
   }
 
   Future<void> playSong(Map<String, dynamic> song,
