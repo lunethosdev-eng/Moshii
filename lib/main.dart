@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +10,7 @@ import 'package:pokke/services/spotify_service.dart';
 import 'package:pokke/services/player_controller.dart';
 import 'package:pokke/services/local_music_service.dart';
 import 'package:pokke/services/notification_service.dart';
+import 'package:pokke/services/headphone_service.dart';
 import 'package:pokke/services/media_audio_handler.dart';
 import 'package:app_links/app_links.dart';
 import 'package:pokke/screens/auth_screen.dart';
@@ -47,6 +49,7 @@ void main() async {
   // background check for followed-artist releases
   NotificationService.instance.refreshFromFollows();
   await initMediaAudioService();
+  unawaited(HeadphoneService.instance.start());
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
