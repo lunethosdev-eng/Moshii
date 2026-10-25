@@ -116,7 +116,7 @@ class SpotifyWebImportService extends ChangeNotifier {
       if (best != null) return best;
 
       // 2) Music API (search + auto download if missing)
-      final remote = await MusicApiService.search(q, limit: 10);
+      final remote = await MusicApiService.search(q);
       best = _bestMatch(remote, title, artist);
       if (best != null) return best;
 
@@ -212,7 +212,7 @@ class SpotifyWebImportService extends ChangeNotifier {
 
     // Best-effort: also mirror into Supabase playlists if user is logged in
     try {
-      final uid = SupabaseService.client.auth.currentUser?.id;
+      final uid = SupabaseService.currentUser?.id;
       if (uid != null) {
         final row = await SupabaseService.kokoro.from('playlists').insert({
           'user_id': uid,
