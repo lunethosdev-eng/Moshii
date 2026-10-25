@@ -3,6 +3,9 @@ import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/notification_service.dart';
 import 'package:pokke/services/audio_cache_service.dart';
 import 'package:pokke/services/spotify_service.dart';
+import 'package:pokke/screens/spotify_web_import_screen.dart';
+import 'package:pokke/screens/listen_together_screen.dart';
+import 'package:pokke/screens/spotify_connect_screen.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -391,66 +394,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
 
               // ── SPOTIFY ───────────────────────────────────────
-              _section(t('Cuentas vinculadas', 'Linked accounts')),
+                                          _section(t('Cuentas vinculadas', 'Linked accounts')),
               LiquidGlass(
                 borderRadius: BorderRadius.circular(14),
                 child: ListTile(
                   leading: const Icon(Icons.library_music, color: Color(0xFF1DB954)),
-                  title: Text(t('Spotify', 'Spotify'),
+                  title: Text(t('Spotify (Web)', 'Spotify (Web)'),
                       style: const TextStyle(color: Colors.white)),
                   subtitle: Text(
-                    SpotifyService.instance.isLinked
-                        ? (SpotifyService.instance.displayName != null
-                            ? '${t('Conectado', 'Connected')} · ${SpotifyService.instance.displayName}'
-                            : t('Conectado · toca Importar', 'Connected · tap Import'))
-                        : t('Importar playlists', 'Import playlists'),
-                    style: TextStyle(
-                        color: SpotifyService.instance.isLinked
-                            ? const Color(0xFF1DB954)
-                            : Colors.white.withOpacity(0.45),
-                        fontSize: 12),
-                  ),
-                  trailing: TextButton(
-                    onPressed: () async {
-                      await SpotifyService.instance.load();
-                      if (SpotifyService.instance.isLinked) {
-                        await _importSpotifyWithPicker(context);
-                        if (context.mounted) setState(() {});
-                        return;
-                      }
-                      final ok = await SpotifyService.instance.connect();
-                      if (!context.mounted) return;
-                      if (ok) {
-                        await _importSpotifyWithPicker(context);
-                        if (context.mounted) setState(() {});
-                      } else {
-                        final err = SpotifyService.instance.friendlyError.isNotEmpty ? SpotifyService.instance.friendlyError : (SpotifyService.instance.lastError ?? "");
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              err != null && err.isNotEmpty
-                                  ? err
-                                  : t(
-                                      'No se pudo conectar. Redirect: pokke://spotify-callback',
-                                      'Could not connect. Redirect: pokke://spotify-callback',
-                                    ),
-                            ),
-                            duration: const Duration(seconds: 6),
-                            backgroundColor: const Color(0xFF3A1A1A),
-                          ),
-                        );
-                      }
-                      if (context.mounted) setState(() {});
-                    },
-                    child: Text(
-                      SpotifyService.instance.isLinked
-                          ? t('Importar', 'Import')
-                          : t('Conectar', 'Connect'),
-                      style: const TextStyle(
-                          color: Color(0xFF1DB954),
-                          fontWeight: FontWeight.w700),
+                    t(
+                      'Sin API · inicia sesión en un navegador in-app, extrae playlists y las busca en Pokke.',
+                      'No API · sign in via in-app browser, extract playlists, match in Pokke.',
                     ),
+                    style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12),
                   ),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const SpotifyWebImportScreen()),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: ListTile(
+                  leading: const Icon(Icons.headphones, color: Color(0xfffc3c44)),
+                  title: Text(t('Escuchar juntos', 'Listen together'),
+                      style: const TextStyle(color: Colors.white)),
+                  subtitle: Text(
+                    t('Beta · salas con código y sesión dual',
+                        'Beta · room codes and dual session'),
+                    style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ListenTogetherScreen()),
+                    );
+                  },
                 ),
               ),
 
