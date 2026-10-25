@@ -5,7 +5,6 @@ import 'package:pokke/services/audio_cache_service.dart';
 import 'package:pokke/services/spotify_service.dart';
 import 'package:pokke/screens/spotify_web_import_screen.dart';
 import 'package:pokke/screens/listen_together_screen.dart';
-import 'package:pokke/screens/spotify_connect_screen.dart';
 import 'package:pokke/widgets/liquid_glass.dart';
 
 class SettingsScreen extends StatefulWidget {
