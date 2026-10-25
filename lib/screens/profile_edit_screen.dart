@@ -378,17 +378,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 }).toList(),
               ),
               const SizedBox(height: 16),
-              LiquidGlass(
-                blur: 14,
-                opacity: 0.08,
-                borderRadius: BorderRadius.circular(14),
-                child: TextField(
-                  controller: _displayNameCtrl,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 
               Text(t('Marco del avatar', 'Avatar frame'),
-                  style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
+                  style: const TextStyle(
+                      color: Colors.white70, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -416,7 +408,15 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 }).toList(),
               ),
               const SizedBox(height: 16),
-              t('Nombre / Nickname', 'Name / Nickname'),
+              LiquidGlass(
+                blur: 14,
+                opacity: 0.08,
+                borderRadius: BorderRadius.circular(14),
+                child: TextField(
+                  controller: _displayNameCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: t('Nombre / Nickname', 'Name / Nickname'),
                     labelStyle: TextStyle(color: Colors.white.withOpacity(0.45)),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.all(14),
