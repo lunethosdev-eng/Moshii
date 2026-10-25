@@ -36,7 +36,7 @@ class ListenTogetherService extends ChangeNotifier {
       _startBroadcast();
       // Best-effort supabase presence room
       try {
-        final ch = SupabaseService.client.channel('listen_${roomCode!}');
+        final ch = SupabaseService.kokoro.channel('listen_${roomCode!}');
         ch.subscribe();
       } catch (_) {}
       return roomCode;
