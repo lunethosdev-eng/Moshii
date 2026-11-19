@@ -13,6 +13,16 @@ class PokkeAudioHandler extends BaseAudioHandler with SeekHandler {
 
   void _syncFromPlayer() {
     final pc = PlayerController.instance;
+    // Media3/PlaybackService owns the active system session while BitChord is
+    // in control. Keep audio_service idle to avoid duplicate notifications.
+    if (pc.isNativePlaybackActive) {
+      playbackState.add(const PlaybackState(
+        controls: [],
+        processingState: AudioProcessingState.idle,
+        playing: false,
+      ));
+      return;
+    }
     final song = pc.current;
     if (song != null) {
       final id = (song['id'] ?? song['title'] ?? 'unknown').toString();
