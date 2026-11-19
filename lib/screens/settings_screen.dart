@@ -610,6 +610,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
 
+              _section(t('Integración avanzada', 'Advanced integration')),
+              LiquidGlass(
+                borderRadius: BorderRadius.circular(14),
+                child: ListTile(
+                  leading: const Icon(Icons.tune_rounded, color: Color(0xfffc3c44)),
+                  title: Text(t('Ajustes avanzados de POKKE', 'POKKE advanced settings'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  subtitle: Text(t('Canvas, Motion Engine, catálogo YouTube, cuentas y preferencias nativas de Tori.', 'Canvas, Motion Engine, YouTube catalog, accounts and Tori native preferences.'), style: TextStyle(color: Colors.white.withOpacity(.5), fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white54),
+                  onTap: () => Navigator.pushNamed(context, '/tori_settings'),
+                ),
+              ),
+
               const SizedBox(height: 24),
               Center(
                 child: Text('pokke · 1.0.0',
