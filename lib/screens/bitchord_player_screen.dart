@@ -35,14 +35,16 @@ class _BitChordPlayerScreenState extends State<BitChordPlayerScreen> {
     final controller = PlayerController.instance;
     try {
       final requestedKey = _songKey(widget.song);
-      if (_songKey(controller.current) != requestedKey) {
-        final audio = (widget.song['audio_url'] ?? widget.song['stream_url'] ?? '').toString();
-        if (audio.isNotEmpty) {
-          await controller.playSong(widget.song, forceRestart: true);
+      if (!controller.isNativePlaybackActive) {
+        if (_songKey(controller.current) != requestedKey) {
+          final audio = (widget.song['audio_url'] ?? widget.song['stream_url'] ?? '').toString();
+          if (audio.isNotEmpty) {
+            await controller.playSong(widget.song, forceRestart: true);
+          }
         }
+        // Transfer playback ownership to Media3; never leave both engines active.
+        await controller.pause();
       }
-      // Do not leave the old Flutter audio engine playing alongside Media3.
-      await controller.pause();
 
       var songs = controller.queue
           .map((item) => Map<String, dynamic>.from(item))
