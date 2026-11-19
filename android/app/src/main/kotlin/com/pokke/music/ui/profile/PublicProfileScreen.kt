@@ -115,11 +115,12 @@ fun PublicProfileScreen(
                         }
                     }
                     Column(Modifier.padding(horizontal = 20.dp).offset(y = (-40).dp)) {
-                        AsyncImage(
-                            model = p.avatarUrl,
-                            contentDescription = null,
-                            modifier = Modifier.size(88.dp).clip(CircleShape).background(Color(0xFF22222A)),
-                            contentScale = ContentScale.Crop
+                        FramedAvatar(
+                            avatarUrl = p.avatarUrl,
+                            displayName = p.displayName ?: p.username ?: username,
+                            frameId = p.frame,
+                            size = 88.dp,
+                            modifier = Modifier
                         )
                         Spacer(Modifier.height(12.dp))
                         val titleColor = runCatching { Color(android.graphics.Color.parseColor(p.nameColor ?: "#F3F2FA")) }.getOrDefault(Ink)
