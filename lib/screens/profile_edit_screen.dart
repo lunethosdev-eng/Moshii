@@ -40,7 +40,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   };
   String _effect = 'glass';
   final _effects = const ['none', 'glass', 'parallax', 'glow'];
-  final _frames = const ['none', 'ring', 'neon', 'pixel', 'soft'];
+  final _frames = <String>['none', ...List.generate(26, (i) => 'frame_${(i + 1).toString().padLeft(2, '0')}')];
   String _frame = 'none';
 
   String t(String es, String en) => SettingsService.instance.locale == 'en' ? en : es;
@@ -112,6 +112,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       // theme column best-effort
       SettingsService.instance.profileTheme = _theme;
       SettingsService.instance.profileEffect = _effect;
+      SettingsService.instance.profileFrame = _frame;
       await SettingsService.instance.save();
       try {
         await SupabaseService.kokoro.from('profiles').update({
@@ -292,6 +293,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 child: GestureDetector(
                   onTap: () => _pickMedia(isAvatar: true),
                   child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
                     children: [
                       CircleAvatar(
                         radius: 48,
@@ -303,9 +306,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                             ? const Icon(Icons.person, size: 40, color: Colors.white38)
                             : null,
                       ),
+                      if (_frame != 'none')
+                        Image.asset(
+                          'assets/profile_frames/$_frame.png',
+                          width: 112,
+                          height: 112,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
                       Positioned(
-                        right: 0,
-                        bottom: 0,
+                        right: -2,
+                        bottom: -2,
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: const BoxDecoration(color: Color(0xfffc3c44), shape: BoxShape.circle),
@@ -383,27 +394,52 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                       color: Colors.white70, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: 10,
+                runSpacing: 10,
                 children: _frames.map((f) {
                   final selected = _frame == f;
-                  final labels = {
-                    'none': t('Ninguno', 'None'),
-                    'ring': 'Ring',
-                    'neon': 'Neon',
-                    'pixel': 'Pixel',
-                    'soft': 'Soft',
-                  };
-                  return ChoiceChip(
-                    label: Text(labels[f] ?? f),
-                    selected: selected,
-                    onSelected: (_) => setState(() => _frame = f),
-                    selectedColor: const Color(0xfffc3c44),
-                    labelStyle: TextStyle(
-                      color: selected ? Colors.white : Colors.white70,
-                      fontWeight: FontWeight.w600,
+                  return GestureDetector(
+                    onTap: () => setState(() => _frame = f),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      width: 66,
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: selected ? const Color(0x33FC3C44) : const Color(0xFF1A1A1E),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: selected ? const Color(0xfffc3c44) : Colors.white12,
+                          width: selected ? 2 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: Colors.white12,
+                                  child: Text('P', style: TextStyle(color: Colors.white70, fontSize: 15)),
+                                ),
+                                if (f != 'none')
+                                  Image.asset('assets/profile_frames/$f.png', fit: BoxFit.contain),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            f == 'none' ? t('Ninguno', 'None') : f.replaceFirst('frame_', '#'),
+                            style: TextStyle(color: selected ? Colors.white : Colors.white70, fontSize: 9),
+                            maxLines: 1,
+                          ),
+                        ],
+                      ),
                     ),
-                    backgroundColor: const Color(0xFF1A1A1E),
                   );
                 }).toList(),
               ),
