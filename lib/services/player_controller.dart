@@ -7,6 +7,7 @@ import 'package:pokke/services/listening_history.dart';
 import 'package:pokke/services/settings_service.dart';
 import 'package:pokke/services/local_music_service.dart';
 import 'package:pokke/services/supabase_service.dart';
+import 'package:pokke/services/tori_native_bridge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PlayerController extends ChangeNotifier {
@@ -15,6 +16,7 @@ class PlayerController extends ChangeNotifier {
   PlayerController._() {
     _wire(_playerA, false);
     _wire(_playerB, true);
+    _listenNativePlayback();
     // Prefer media player mode so Android can surface media controls
     unawaited(_playerA.setPlayerMode(PlayerMode.mediaPlayer));
     unawaited(_playerB.setPlayerMode(PlayerMode.mediaPlayer));
@@ -91,8 +93,72 @@ class PlayerController extends ChangeNotifier {
   Duration position = Duration.zero;
   Duration duration = Duration.zero;
   bool isPlaying = false;
+  bool _nativePlaybackActive = false;
+  bool get isNativePlaybackActive => _nativePlaybackActive;
+  StreamSubscription<Map<String, dynamic>>? _nativePlaybackSubscription;
+
+  void _listenNativePlayback() {
+    _nativePlaybackSubscription ??= ToriNativeBridge.playerEvents.listen(
+      (state) {
+        final rawSong = state['song'];
+        if (rawSong is Map) {
+          final rawQueue = state['queue'];
+          final nativeQueue = rawQueue is List
+              ? rawQueue.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+              : <Map<String, dynamic>>[];
+          adoptNativeState(
+            song: Map<String, dynamic>.from(rawSong),
+            queue: nativeQueue,
+            queueIndex: (state['queueIndex'] as num?)?.toInt() ?? 0,
+            isPlaying: state['isPlaying'] == true,
+            position: Duration(milliseconds: (state['positionMs'] as num?)?.toInt() ?? 0),
+            duration: Duration(milliseconds: (state['durationMs'] as num?)?.toInt() ?? 0),
+            nativeRepeatMode: (state['repeatMode'] as num?)?.toInt(),
+            nativeShuffleEnabled: state['shuffleEnabled'] as bool?,
+          );
+        } else if (_nativePlaybackActive) {
+          _nativePlaybackActive = false;
+          isPlaying = false;
+          position = Duration.zero;
+          duration = Duration.zero;
+          notifyListeners();
+        }
+      },
+      onError: (Object error) {
+        debugPrint('Native player event stream unavailable: $error');
+      },
+    );
+  }
 
   AudioPlayer get _active => _usingB ? _playerB : _playerA;
+
+  /// Mirrors Media3 playback into Moshi's existing mini-player state without
+  /// starting a second audio engine. Subsequent transport actions stay native.
+  void adoptNativeState({
+    required Map<String, dynamic> song,
+    required List<Map<String, dynamic>> queue,
+    required int queueIndex,
+    required bool isPlaying,
+    required Duration position,
+    required Duration duration,
+    int? nativeRepeatMode,
+    bool? nativeShuffleEnabled,
+  }) {
+    _nativePlaybackActive = true;
+    currentSong = Map<String, dynamic>.from(song);
+    this.queue = queue.map((item) => Map<String, dynamic>.from(item)).toList();
+    this.queueIndex = this.queue.isEmpty
+        ? 0
+        : queueIndex.clamp(0, this.queue.length - 1).toInt();
+    this.isPlaying = isPlaying;
+    this.position = position;
+    this.duration = duration;
+    if (nativeRepeatMode != null) {
+      repeatMode = nativeRepeatMode == 1 ? 2 : nativeRepeatMode == 2 ? 1 : 0;
+    }
+    if (nativeShuffleEnabled != null) shuffleMode = nativeShuffleEnabled;
+    notifyListeners();
+  }
   AudioPlayer get _idle => _usingB ? _playerA : _playerB;
 
   String _songKey(Map<String, dynamic> s) =>
@@ -194,6 +260,12 @@ class PlayerController extends ChangeNotifier {
   }
 
   void toggleShuffle() {
+    if (_nativePlaybackActive) {
+      shuffleMode = !shuffleMode;
+      unawaited(ToriNativeBridge.shufflePlayer());
+      notifyListeners();
+      return;
+    }
     shuffleMode = !shuffleMode;
     if (shuffleMode) {
       _originalQueue = List<Map<String, dynamic>>.from(queue);
@@ -222,6 +294,12 @@ class PlayerController extends ChangeNotifier {
   }
 
   void cycleRepeatMode() {
+    if (_nativePlaybackActive) {
+      repeatMode = (repeatMode + 1) % 3;
+      unawaited(ToriNativeBridge.repeatPlayer());
+      notifyListeners();
+      return;
+    }
     repeatMode = (repeatMode + 1) % 3;
     final mode = repeatMode == 2 ? ReleaseMode.loop : ReleaseMode.release;
     unawaited(_playerA.setReleaseMode(mode));
@@ -283,11 +361,19 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> playNextInQueue() async {
+    if (_nativePlaybackActive) {
+      await ToriNativeBridge.nextPlayer();
+      return;
+    }
     if (queue.isEmpty) return;
     await _advanceToNext();
   }
 
   Future<void> playPreviousInQueue() async {
+    if (_nativePlaybackActive) {
+      await ToriNativeBridge.previousPlayer();
+      return;
+    }
     if (queue.isEmpty) return;
     queueIndex = (queueIndex - 1) < 0 ? queue.length - 1 : queueIndex - 1;
     _nextReady = false;
@@ -296,6 +382,12 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> seekTo(Duration pos) async {
+    if (_nativePlaybackActive) {
+      await ToriNativeBridge.seekPlayer(pos);
+      position = pos;
+      notifyListeners();
+      return;
+    }
     try {
       await _active.seek(pos);
       position = pos;
@@ -307,6 +399,13 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> playSong(Map<String, dynamic> song,
       {bool forceRestart = false}) async {
+    if (_nativePlaybackActive) {
+      await ToriNativeBridge.stopPlayer();
+      _nativePlaybackActive = false;
+      isPlaying = false;
+      position = Duration.zero;
+      duration = Duration.zero;
+    }
     final key = _songKey(song);
     if (!forceRestart &&
         currentSong != null &&
@@ -407,12 +506,24 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> seek(Duration position) async {
+    if (_nativePlaybackActive) {
+      await ToriNativeBridge.seekPlayer(position);
+      this.position = position;
+      notifyListeners();
+      return;
+    }
     await _active.seek(position);
     this.position = position;
     notifyListeners();
   }
 
   Future<void> toggle() async {
+    if (_nativePlaybackActive) {
+      await ToriNativeBridge.togglePlayer();
+      isPlaying = !isPlaying;
+      notifyListeners();
+      return;
+    }
     if (isPlaying) {
       await _active.pause();
       isPlaying = false;
@@ -424,12 +535,24 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> pause() async {
+    if (_nativePlaybackActive) {
+      await ToriNativeBridge.pausePlayer();
+      isPlaying = false;
+      notifyListeners();
+      return;
+    }
     await _active.pause();
     isPlaying = false;
     notifyListeners();
   }
 
   Future<void> resume() async {
+    if (_nativePlaybackActive) {
+      await ToriNativeBridge.resumePlayer();
+      isPlaying = true;
+      notifyListeners();
+      return;
+    }
     await _active.resume();
     isPlaying = true;
     notifyListeners();
@@ -438,6 +561,13 @@ class PlayerController extends ChangeNotifier {
   /// Crossfade to another song using dual players (settings crossfade).
   Future<void> crossfadeTo(Map<String, dynamic> song,
       {Duration fade = const Duration(seconds: 4)}) async {
+    if (_nativePlaybackActive) {
+      await ToriNativeBridge.stopPlayer();
+      _nativePlaybackActive = false;
+      isPlaying = false;
+      position = Duration.zero;
+      duration = Duration.zero;
+    }
     final url = (song['audio_url'] ?? song['stream_url'] ?? '').toString();
     if (url.isEmpty) {
       await playSong(song, forceRestart: true);
