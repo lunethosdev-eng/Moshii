@@ -5,6 +5,7 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
 import com.ryanheise.audioservice.AudioServiceActivity
+import com.example.pokke.PokkeChannels
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
@@ -13,6 +14,10 @@ class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // Register Tori's native feature bridge and audio-route events on the
+        // same Flutter engine used by Moshi. The handler existed in the project
+        // but was never registered, so every Dart call previously went unanswered.
+        PokkeChannels.register(flutterEngine, applicationContext)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, audioChannel)
             .setMethodCallHandler { call, result ->
                 if (call.method == "getAudioOutput") {
